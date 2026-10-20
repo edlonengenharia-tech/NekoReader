@@ -10,13 +10,22 @@ namespace MangaReader.Services;
 /// </summary>
 public sealed class ReadingStateService
 {
-    private static readonly string Dir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MangaReader", "positions");
+    private readonly string _dir;
 
-    public ReadingStateService() => Directory.CreateDirectory(Dir);
+    /// <summary>Construtor padrão: %APPDATA%\MangaReader\positions.</summary>
+    public ReadingStateService()
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MangaReader", "positions"))
+    { }
+
+    /// <summary>Permite isolar o diretório de estado (usado nos testes).</summary>
+    public ReadingStateService(string directory)
+    {
+        _dir = directory;
+        Directory.CreateDirectory(_dir);
+    }
 
     private string PathFor(ReadingState s)
-        => System.IO.Path.Combine(Dir, ReadingState.SanitizeKey(s.CacheKey) + ".json");
+        => System.IO.Path.Combine(_dir, ReadingState.SanitizeKey(s.CacheKey) + ".json");
 
     public void Save(ReadingState state)
     {
@@ -34,7 +43,7 @@ public sealed class ReadingStateService
         {
             long len = new FileInfo(filePath).Length;
             var key = ReadingState.SanitizeKey($"{filePath}|{len}") + ".json";
-            var file = System.IO.Path.Combine(Dir, key);
+            var file = System.IO.Path.Combine(_dir, key);
             if (!File.Exists(file)) return null;
             return JsonConvert.DeserializeObject<ReadingState>(File.ReadAllText(file));
         }
@@ -45,8 +54,8 @@ public sealed class ReadingStateService
     public IReadOnlyDictionary<string, ReadingState> LoadAll()
     {
         var result = new Dictionary<string, ReadingState>();
-        if (!Directory.Exists(Dir)) return result;
-        foreach (var f in Directory.EnumerateFiles(Dir, "*.json"))
+        if (!Directory.Exists(_dir)) return result;
+        foreach (var f in Directory.EnumerateFiles(_dir, "*.json"))
         {
             try
             {

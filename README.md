@@ -6,7 +6,33 @@ e suporte a **CBZ, CBR, CBT, CB7 e PDF**.
 
 ## Como compilar e rodar
 
-Requer **.NET SDK 8+** e **Windows** (WinForms):
+Requer **.NET SDK 8+** e **Windows** (WinForms). Há três caminhos prontos:
+
+### Opção A — Scripts .BAT na raiz (duplo-clique)
+
+| Script | O que faz |
+|---|---|
+| `TESTE.cmd` | Localiza o dotnet → compila a solução → roda os testes xUnit (`MangaReader.Tests`) → abre o app com `samples\sample-cbz.cbz` (feche a janela para o script terminar). Aceita `TESTE.cmd --release`. |
+| `RECOMPILAR.cmd` | Recompila e **transforma em executável portátil**: `dotnet publish -r win-x64 --self-contained /p:PublishSingleFile=true` → `dist\MangaReader\MangaReader.exe` (roda sem .NET instalado). Com `RECOMPILAR.cmd --zip` também gera `dist\MangaReader-win-x64.zip`. |
+| `RECOMPILAR-NPM.cmd` | Mesmo pipeline, mas orquestrado pelo **Node.js** (zero dependências npm): `RECOMPILAR-NPM.cmd [test|dist|package|setup]`. |
+
+### Opção B — Via Node (biblioteca já instalada no PC)
+
+```powershell
+npm run build      # compila (Release)
+npm run test       # compila + testes xUnit
+npm run start      # abre o app com a amostra CBZ
+npm run dist       # exe portável single-file em dist\MangaReader\
+npm run package    # idem + ZIP distribuível
+npm run setup      # se faltar o SDK: baixa o .NET 8 p/ .dotnet\ (dotnet-install.ps1)
+```
+
+Os scripts estão em `scripts/build.mjs` (orquestrador), `scripts/dotnet-lib.mjs`
+(descoberta do dotnet: `DOTNET_HOME` → `.dotnet\` local → PATH → Program Files)
+e `scripts/setup-dotnet.mjs` ("outro método": instala o SDK automaticamente via
+PowerShell, sem admin e sem `npm install`).
+
+### Opção C — Manual
 
 ```powershell
 cd MangaReader
@@ -14,6 +40,15 @@ dotnet restore
 dotnet run            # abre a interface
 dotnet run -- "D:\Comics\One Piece - 104.cbz"   # abre direto um arquivo
 ```
+
+## Testes automatizados
+
+Projeto `MangaReader.Tests` (xUnit, `dotnet test`): gera CBZs válidos em memória
+(PNG 1×1 construído byte a byte) e cobre abertura/contagem de páginas, extração
+de bytes, ordenação natural (02 antes de 10), parser de ComicInfo.xml, mapeamento
+RTL/LTR da engine (inclusive página dupla) e round-trip do estado de leitura.
+`ReadingStateService` ganhou um construtor com diretório injetável para os
+testes rodarem isolados, sem tocar no `%APPDATA%` real.
 
 ## Estrutura do projeto
 
@@ -40,9 +75,17 @@ MangaReader/
 │   ├── MainForm.cs             # layout, barra inferior, atalhos, fullscreen
 │   ├── PagePanel.cs            # GDI+ duplo-buffered: fit, zoom/pan, flip anim.
 │   └── LibraryPanel.cs         # grade de capas ocultável (Tab)
+MangaReader.Tests/
+├── MangaReader.Tests.csproj    # xUnit + referência ao projeto principal
+└── CoreTests.cs                # CBZ sintético, RTL, ordenação, metadados, estado
+samples/
+├── sample-cbz.cbz              # gibi de teste (12 páginas PNG 800×1200)
+└── manga-one-piece-104.cbz     # teste de parsing "Série - Número" (10 páginas)
+scripts/                        # orquestradores Node (build/test/dist/setup)
 tools/
 ├── shellext-reg/               # .reg de associação de arquivos (sem COM)
 └── shellext-src/               # esqueleto de IThumbnailProvider (miniatura real)
+TESTE.cmd · RECOMPILAR.cmd · RECOMPILAR-NPM.cmd · package.json · MangaReader.sln
 ```
 
 ## Bibliotecas NuGet escolhidas (e por quê)
