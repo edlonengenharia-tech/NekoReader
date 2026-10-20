@@ -43,6 +43,9 @@ public static class BookFactory
 public sealed class ArchiveBookAdapter : IBook
 {
     private readonly ArchiveBook _archive;
+    // Dimensões reais só precisam ser medidas uma vez por página (evita re-descomprimir
+    // a mesma imagem a cada layout de página dupla).
+    private readonly Dictionary<int, (int W, int H)> _measured = [];
 
     public string FilePath => _archive.FilePath;
     public int PageCount => _archive.PageCount;
@@ -56,19 +59,21 @@ public sealed class ArchiveBookAdapter : IBook
 
     public byte[] ReadPageBytes(int physicalIndex) => _archive.ReadPageBytes(physicalIndex);
 
-    // Dimensões reais exigem decodificar o header da imagem; usamos GDI+ de forma leve.
-    public int GetPageWidth(int i)  => Measure(i, w => w);
-    public int GetPageHeight(int i) => Measure(i, h => h);
+    public int GetPageWidth(int i)  => Measure(i).W;
+    public int GetPageHeight(int i) => Measure(i).H;
 
-    private int Measure(int index, Func<int, int> pick)
+    private (int W, int H) Measure(int index)
     {
+        if (_measured.TryGetValue(index, out var cached)) return cached;
         try
         {
             using var ms = new MemoryStream(ReadPageBytes(index));
             using var img = System.Drawing.Image.FromStream(ms, useEmbeddedColorManagement: false, validateImageData: false);
-            return pick(img.Width);
+            var size = (img.Width, img.Height);
+            _measured[index] = size;
+            return size;
         }
-        catch { return 800; } // fallback razoável para ordenação dupla-página
+        catch { return (800, 1200); } // fallback razoável para ordenação dupla-página
     }
 
     public void Dispose() => _archive.Dispose();

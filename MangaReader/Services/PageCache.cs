@@ -62,9 +62,18 @@ public sealed class PageCache : IDisposable
     private static System.Drawing.Bitmap Load(Func<byte[]> loader)
     {
         var bytes = loader();
-        using var ms = new MemoryStream(bytes);
-        using var img = System.Drawing.Image.FromStream(ms, useEmbeddedColorManagement: false, validateImageData: false);
-        return new System.Drawing.Bitmap(img); // cópia própria — não depende do stream
+        try
+        {
+            using var ms = new MemoryStream(bytes);
+            using var img = System.Drawing.Image.FromStream(ms, useEmbeddedColorManagement: false, validateImageData: false);
+            return new System.Drawing.Bitmap(img); // cópia própria — não depende do stream
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidDataException(
+                "A página foi descomprimida mas não pôde ser decodificada como imagem " +
+                $"({ex.Message}). O arquivo interno pode estar truncado ou corrompido.", ex);
+        }
     }
 
     public void Clear()

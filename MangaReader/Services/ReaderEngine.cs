@@ -9,9 +9,12 @@ namespace MangaReader.Services;
 /// </summary>
 public sealed class ReaderEngine : IDisposable
 {
-    private readonly PageCache _cache = new(maxEntries: 12);
+    private PageCache _cache = new(maxEntries: 12);
     private readonly ReadingStateService _stateService = new();
     private CancellationTokenSource? _prefetchCts;
+
+    /// <summary>Configurações globais (setadas pelo MainForm logo após o construtor).</summary>
+    public AppSettings Settings { get; set; } = new();
 
     public IBook? Book { get; private set; }
     public bool RightToLeft { get; private set; }          // modo mangá
@@ -31,9 +34,10 @@ public sealed class ReaderEngine : IDisposable
         CloseCurrent();
         Book = BookFactory.Open(path);
 
-        // Auto-detecção de mangá: ComicInfo.xml diz, ou usuário já salvou RTL antes.
+        // Auto-detecção de mangá: estado salvo > preferência global > ComicInfo.xml.
         var saved = _stateService.Load(path);
-        RightToLeft = saved?.RightToLeft ?? Book.Metadata.IsManga;
+        RightToLeft = saved?.RightToLeft ?? (Settings.RightToLeftByDefault || Book.Metadata.IsManga);
+        Layout = Settings.DoublePageByDefault ? PageLayout.DoublePage : PageLayout.SinglePage;
 
         DisplayIndex = saved is not null && saved.TotalPages == Book.PageCount
             ? Math.Clamp(saved.GetDisplayIndex(RightToLeft), 0, SpreadCount - 1)
@@ -41,6 +45,17 @@ public sealed class ReaderEngine : IDisposable
 
         Raise();
         PrefetchAsync();
+    }
+
+    /// <summary>Aplica novas dimensões de cache vindas das Opções (recria o LRU).</summary>
+    public void ApplyCacheSettings()
+    {
+        lock (_cache)
+        {
+            _cache.Dispose();
+            _cache = new PageCache(Settings.CacheEntries);
+        }
+        if (Book is not null) PrefetchAsync();
     }
 
     public void CloseCurrent()
@@ -147,18 +162,24 @@ public sealed class ReaderEngine : IDisposable
         var cts = new CancellationTokenSource();
         _prefetchCts = cts;
         var book = Book;
-        var neighbors = new[] { DisplayIndex + 1, DisplayIndex + 2, DisplayIndex - 1 }
+        int ahead = Math.Clamp(Settings.PrefetchPages, 0, 5);
+        var neighbors = Enumerable.Range(1, ahead).Select(i => DisplayIndex + i)
+            .Concat(Enumerable.Range(1, Math.Max(1, ahead / 2)).Select(i => DisplayIndex - i))
             .Where(i => i >= 0 && i < SpreadCount)
             .SelectMany(PhysicalIndexOfSpread)
             .Distinct()
             .ToList();
 
+        // Snapshot do cache atual: ApplyCacheSettings pode trocar a instância enquanto
+        // o prefetch roda — nunca escrever em um PageCache já descartado.
+        var cache = _cache;
         _ = Task.Run(() =>
         {
             foreach (var p in neighbors)
             {
                 if (cts.IsCancellationRequested) return;
-                try { _cache.GetOrAdd(book.FilePath, p, () => book.ReadPageBytes(p)); }
+                try { cache.GetOrAdd(book.FilePath, p, () => book.ReadPageBytes(p)); }
+                catch (ObjectDisposedException) { return; }
                 catch { /* prefetch é melhor esforço */ }
             }
         }, cts.Token);

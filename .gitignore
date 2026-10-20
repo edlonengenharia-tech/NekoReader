@@ -1,7 +1,1 @@
-bin/
-obj/
-publish/
-dist/
-.dotnet/
-node_modules/
-*.user
+*.bak
