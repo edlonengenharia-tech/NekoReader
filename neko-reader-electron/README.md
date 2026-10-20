@@ -27,7 +27,7 @@ npm run dist:installer  :: instalador NSIS com associacao CBZ/CBR/CBT/CB7/PDF
 | .cbt/.tar(.gz) | pacote `tar` (JS puro) |
 | .cb7/.7z | bindings nativos do `sevenzip`; fallback automatico para 7z.exe |
 | .cbr/.rar | sevenzip -> UnRAR.exe/7z.exe -> unrar.js (vendor opcional). **Nada disso da NullReferenceException**: erros viram banner amigavel na UI |
-| .pdf | pdfjs-dist (Mozilla); render precisa de `canvas` (opcional). Sem canvas mostra aviso, nunca fecha o app |
+| .pdf | pdfjs-dist (Mozilla); render usa `@napi-rs/canvas` (opcional, prebuilt - nada a compilar). Sem canvas mostra aviso, nunca fecha o app |
 
 ## Recursos
 Manga RTL (M), pagina dupla (D), ajuste largura/altura/pagina (W), zoom (+/- e Ctrl+roda),
@@ -54,6 +54,8 @@ vendor/unrar.js   placeholder opcional p/ RAR via WASM
 ```
 
 ## Dicas
-- O EXE portavel embute o runtime Node/Eletron: leve só o .exe no pendrive.
+- O EXE portavel embute o runtime Node/Electron: leve so o .exe no pendrive.
 - Para RAR5 raro/corrompido sem WinRAR nem 7-Zip no PC, converta para CBZ (o app avisa isso).
-- O projeto C#/WinForms antigo continua em ../MangaReader caso queira voltar a ele.
+- Se aparecer "'electron' nao e reconhecido": rode `npm install` nesta pasta. O TESTE-NPM.cmd
+  ja chama o binario local (`node_modules\.bin\electron.cmd`) em vez de depender do PATH.
+- O projeto C#/WinForms antigo (MangaReader) foi REMOVIDO do repositorio; agora so Electron.

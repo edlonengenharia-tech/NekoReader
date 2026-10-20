@@ -41,6 +41,12 @@ async function pageCount(file) {
 }
 
 /** Renderiza a pagina (0-based) num PNG data-url ~110 DPI x escala. */
+function loadCanvas() {
+  // Ordem de preferencia: @napi-rs/canvas (prebuilds p/ Windows x64, nada a compilar) > canvas (nativo).
+  try { return require('@napi-rs/canvas'); } catch (_) { /* tenta o proximo */ }
+  try { return require('canvas'); } catch (_) { return null; }
+}
+
 async function renderPageDataUrl(file, index) {
   const doc = await getDoc(file);
   const page = await doc.getPage(index + 1);
@@ -48,12 +54,11 @@ async function renderPageDataUrl(file, index) {
   const scale = Math.min(2, Math.max(1, 1400 / vp.width)); // resolucao boa p/ leitura
   const viewport = page.getViewport({ scale });
 
-  // Canvas offscreen via canvas package (opcional). Sem ele, usamos um rasterizador simples interno?
-  // Para manter zero-nativo: se 'canvas' nao existir, retornamos placeholder informativo.
-  let Canvas;
-  try { Canvas = require('canvas'); } catch (_) { Canvas = null; }
+  // Canvas offscreen: pacote opcional. Aceita 'canvas' ou '@napi-rs/canvas'
+  // (este ultimo tem prebuilds prontos para Windows x64 - nada compilar).
+  const Canvas = loadCanvas();
   if (!Canvas) {
-    return placeholderSvg(`PDF ${path.basename(file)} - pagina ${index + 1}\nInstale "npm i canvas" para renderizar PDFs.`);
+    return placeholderSvg(`PDF ${path.basename(file)} - pagina ${index + 1}\nRenderizador de PDF indisponivel neste PC (opcional).`);
   }
   const canvas = Canvas.createCanvas(Math.round(viewport.width), Math.round(viewport.height));
   const ctx = canvas.getContext('2d');
