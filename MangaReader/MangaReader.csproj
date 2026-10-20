@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Requer Windows para WinForms -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>MangaReader</AssemblyName>
+    <RootNamespace>MangaReader</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ZIP (CBZ), TAR (CBT), RAR (CBR) e 7z (CB7): uma única lib cobre tudo -->
+    <PackageReference Include="SharpCompress" Version="0.38.0" />
+    <!-- PDF: renderização de páginas como imagem -->
+    <PackageReference Include="Docnet.Core.SkiaSharp" Version="1.1.0" />
+    <!-- Metadados / serialização do estado de leitura -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
