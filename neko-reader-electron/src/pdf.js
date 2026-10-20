@@ -1,28 +1,28 @@
 /*
  * pdf.js - leitura de PDF sem .NET e sem binario extra.
- * Usa o pdf.js (Mozilla) empacotado via npm; aqui carregamos de vendor/pdfjs se existir,
- * senão tentamos require('pdfjs-dist/legacy/build/pdf.js'). Se nada existir, devolve
- * uma pagina-placeholder com aviso (o app nunca quebra).
+ * Estratégia (inspirada no pdfcraft / pdf.js no navegador): o RENDER das páginas
+ * acontece no <canvas> do RENDERER (Chromium tem DOMMatrix/Path2D/fontes nativas —
+ * é onde o texto SEMPRE aparece). O processo principal usa pdfjs apenas para
+ * contagem de páginas e extração de texto (IA/busca), e serve os bytes do PDF.
  */
 const fs = require('fs');
 const path = require('path');
 
-// No Node/Electron-main o pdfjs tenta BAIXAR as fontes padrao (Helvetica, Courier...)
-// por URL -> falha silenciosa e a pagina sai em branco ("abre mas nao le").
-// Solucao: apontar standardFontDataUrl para a pasta LOCAL do pacote pdfjs-dist,
-// em formato file:// (com barra final), que o fetcher do Node aceita.
-let _stdFontPatched = false;
-function patchStandardFonts(lib) {
-  if (_stdFontPatched) return;
-  _stdFontPatched = true;
-  try {
-    const path = require('path');
-    const fsx = require('fs');
-    let dir = path.join(path.dirname(require.resolve('pdfjs-dist/legacy/build/pdf.js')), '..', '..', 'standard_fonts');
-    if (!fsx.existsSync(dir)) dir = path.join(path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts');
-    const url = 'file:///' + dir.split(path.sep).join('/').replace(/^\/+/, '') + '/';
-    lib.__nekoStandardFontDir = url;
-  } catch (_) {}
+// Pasta LOCAL das fontes padrão do pdfjs (Helvetica/Courier/Times) — usada só
+// como reforço no main (extração de texto não depende delas, render sim quando
+// algo rasterizar no Node). Em app empacotado vem de resources/standard_fonts.
+function standardFontDir() {
+  const cands = [];
+  try { cands.push(path.join(process.resourcesPath || '', 'standard_fonts')); } catch (_) {}
+  try { cands.push(path.join(path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts')); } catch (_) {}
+  try { cands.push(path.join(__dirname, '..', 'vendor', 'standard_fonts')); } catch (_) {}
+  for (const c of cands) { try { if (c && fs.existsSync(c)) return c; } catch (_) {} }
+  return null;
+}
+function standardFontUrl() {
+  const d = standardFontDir();
+  if (!d) return undefined;
+  return 'file:///' + d.split(path.sep).join('/').replace(/^\/+/, '') + '/';
 }
 
 let _doc = null;      // documento aberto em cache
@@ -57,22 +57,20 @@ async function getDoc(file) {
 
   // Força o worker em processo no Node (Electron main): sem isso o pdfjs tenta
   // criar Worker via URL de arquivo e falha silenciosamente -> "não abre PDF".
+  let worker = null;
   try {
     lib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
     const PdfWorker = lib.PDFWorker || lib.Worker;
-    var worker = PdfWorker ? new PdfWorker({ name: 'neko-pdf-worker' }) : null;
-  } catch (_) { var worker = null; }
+    if (PdfWorker) worker = new PdfWorker({ name: 'neko-pdf-worker' });
+  } catch (_) { worker = null; }
 
-  patchStandardFonts(lib);
   const params = {
     data,
     useSystemFonts: true,
     isEvalSupported: false,
     disableFontFace: true,
-    // pasta LOCAL das fontes padrao (vem no pacote npm pdfjs-dist): sem isto,
-    // PDFs de texto simples saem em branco no render Node (@napi-rs/canvas).
-    standardFontDataUrl: lib.__nekoStandardFontDir || undefined,
-    // nunca usar canvas de DOM (inexistente no main)
+    // pasta LOCAL das fontes padrao (reforço; o render principal é no renderer)
+    standardFontDataUrl: standardFontUrl(),
     enableXfa: false
   };
   if (worker) params.worker = worker;
@@ -93,39 +91,9 @@ async function pageCount(file) {
   return doc.numPages;
 }
 
-/** Renderiza a pagina (0-based) num PNG data-url ~110 DPI x escala. */
-function loadCanvas() {
-  // Ordem de preferencia: @napi-rs/canvas (prebuilds p/ Windows x64, nada a compilar) > canvas (nativo).
-  try { return require('@napi-rs/canvas'); } catch (_) { /* tenta o proximo */ }
-  try { return require('canvas'); } catch (_) { return null; }
-}
-
-async function renderPageDataUrl(file, index) {
-  const doc = await getDoc(file);
-  const page = await doc.getPage(index + 1);
-  const vp = page.getViewport({ scale: 1 });
-  const scale = Math.min(2, Math.max(1, 1400 / vp.width)); // resolucao boa p/ leitura
-  const viewport = page.getViewport({ scale });
-
-  // Canvas offscreen: pacote opcional. Aceita 'canvas' ou '@napi-rs/canvas'
-  // (este ultimo tem prebuilds prontos para Windows x64 - nada compilar).
-  const Canvas = loadCanvas();
-  if (!Canvas) {
-    return placeholderSvg(`PDF ${path.basename(file)} - pagina ${index + 1}\nRenderizador de PDF indisponivel neste PC (opcional).`);
-  }
-  const canvas = Canvas.createCanvas(Math.round(viewport.width), Math.round(viewport.height));
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas.toBuffer ? `data:image/png;base64,${canvas.toBuffer('image/png').toString('base64')}`
-                          : canvas.toDataURL('image/png');
-}
-
-function placeholderSvg(text) {
-  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '&#10;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100"><rect width="100%" height="100%" fill="#222"/><text x="40" y="80" fill="#eee" font-family="sans-serif" font-size="28" xml:space="preserve">${esc}</text></svg>`;
-  return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
+/** Bytes do PDF (o renderer faz o parse/render com pdfjs no Chromium). */
+function readPdfBytes(file) {
+  return new Uint8Array(fs.readFileSync(file));
 }
 
 /** Extrai o texto de uma pagina (0-based). '' = pagina escaneada/sem camada de texto. */
@@ -136,4 +104,4 @@ async function pageText(file, index) {
   return tc.items.map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-module.exports = { pageCount, renderPageDataUrl, pageText, getDoc };
+module.exports = { pageCount, readPdfBytes, pageText, getDoc };

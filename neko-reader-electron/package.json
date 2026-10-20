@@ -15,6 +15,7 @@
     "sample": "node scripts/make-sample.mjs"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
     "adm-zip": "^0.5.16",
     "pdfjs-dist": "^3.11.174",
     "sevenzip": "^2.0.0",
@@ -52,37 +53,40 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "fileAssociations": [
-        {
-          "ext": "cbz",
-          "name": "Comic Book ZIP",
-          "role": "Viewer"
-        },
-        {
-          "ext": "cbr",
-          "name": "Comic Book RAR",
-          "role": "Viewer"
-        },
-        {
-          "ext": "cbt",
-          "name": "Comic Book TAR",
-          "role": "Viewer"
-        },
-        {
-          "ext": "cb7",
-          "name": "Comic Book 7Z",
-          "role": "Viewer"
-        },
-        {
-          "ext": "pdf",
-          "name": "PDF Comic",
-          "role": "Viewer"
-        }
-      ]
-    }
-  },
-  "optionalDependencies": {
-    "@napi-rs/canvas": "^0.1.65"
+      "allowToChangeInstallationDirectory": true
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/pdfjs-dist/standard_fonts",
+        "to": "standard_fonts"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "cbz",
+        "name": "Comic Book ZIP",
+        "role": "Viewer"
+      },
+      {
+        "ext": "cbr",
+        "name": "Comic Book RAR",
+        "role": "Viewer"
+      },
+      {
+        "ext": "cbt",
+        "name": "Comic Book TAR",
+        "role": "Viewer"
+      },
+      {
+        "ext": "cb7",
+        "name": "Comic Book 7Z",
+        "role": "Viewer"
+      },
+      {
+        "ext": "pdf",
+        "name": "PDF Comic",
+        "role": "Viewer"
+      }
+    ]
   }
 }

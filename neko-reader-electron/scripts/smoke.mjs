@@ -13,16 +13,28 @@ try {
   console.log('[OK] CBZ: 6 paginas listadas, pagina 1 extraida (' + Math.round(url.length/1024) + ' KB base64).');
 } catch (e) { console.error('[ERRO] smoke CBZ:', e.message); process.exit(1); }
 
-// PDF: precisa abrir E ter camada de texto legivel (funcoes novas do leitor de PDF)
+// PDF: o main só serve bytes/conta páginas; o RENDER é no renderer (Chromium).
 try {
   const pdf = require('../src/pdf.js');
   if (fs.existsSync('samples/exemplo.pdf')) {
     const n = await pdf.pageCount('samples/exemplo.pdf');
-    const img = await pdf.renderPageDataUrl('samples/exemplo.pdf', 0);
-    if (!img.startsWith('data:image/')) throw new Error('renderizador nao devolveu imagem');
+    const bytes = pdf.readPdfBytes('samples/exemplo.pdf');
+    if (!bytes || bytes.length < 200 || String.fromCharCode(bytes[0],bytes[1],bytes[2],bytes[3]) !== '%PDF') throw new Error('bytes do PDF invalidos');
     const txt = await pdf.pageText('samples/exemplo.pdf', 0);
-    console.log('[OK] PDF: ' + n + ' paginas, render OK, texto da p.1: "' + (txt || '(sem texto - escaneado)').slice(0, 40) + '"');
+    console.log('[OK] PDF: ' + n + ' paginas, ' + bytes.length + ' bytes servidos ao renderer, texto da p.1: "' + (txt || '(sem texto - escaneado)').slice(0, 40) + '"');
   } else {
     console.log('[--] samples/exemplo.pdf ausente, pulando teste de PDF');
   }
 } catch (e) { console.error('[ERRO] smoke PDF:', e.message); process.exit(1); }
+
+// vendor do pdfjs para o renderer (arquivos que o index.html carrega)
+try {
+  for (const f of ['vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js']) {
+    if (!fs.existsSync(f)) {
+      const src = 'node_modules/pdfjs-dist/legacy/build/' + f.split('/').pop();
+      if (fs.existsSync(src)) fs.copyFileSync(src, f);
+      else { console.error('[ERRO] falta ' + f + ' e ' + src + '. Rode npm install.'); process.exit(1); }
+    }
+  }
+  console.log('[OK] vendor/pdfjs presente (pdf.min.js + pdf.worker.min.js).');
+} catch (e) { console.error('[ERRO] smoke vendor pdfjs:', e.message); process.exit(1); }

@@ -165,9 +165,30 @@ ipcMain.handle('book:open', async (_e, filePath) => {
   return archives.listPages(filePath); // { kind, pageNames:[], pageCount }
 });
 
+// Para PDF o RENDER acontece no renderer (pdfjs + <canvas> do Chromium, estilo
+// pdfcraft): devolve os bytes + URLs locais dos assets do pdfjs para o worker/
+// viewer rodarem dentro da janela. Quadrinhos seguem por data-url normal.
 ipcMain.handle('book:page', async (_e, { filePath, index }) => {
-  if (/\.pdf$/i.test(filePath)) return pdfjs.renderPageDataUrl(filePath, index);
-  return archives.readPageDataUrl(filePath, index);
+  if (/\.pdf$/i.test(filePath)) {
+    let base;
+    try { base = path.dirname(require.resolve('pdfjs-dist/package.json')); }
+    catch (_) { base = path.join(__dirname, '..', 'node_modules', 'pdfjs-dist'); }
+    const toUrl = (p) => 'file:///' + p.split(path.sep).join('/').replace(/^\/+/, '');
+    return {
+      kind: 'pdf',
+      bytes: Array.from(pdfjs.readPdfBytes(filePath)),
+      viewer: {
+        workerSrc: toUrl(path.join(base, 'legacy', 'build', 'pdf.worker.js')),
+        standardFontBase: (() => {
+          const cand = [path.join(process.resourcesPath || '', 'standard_fonts'), path.join(base, 'standard_fonts')];
+          for (const c of cand) { try { if (c && fs.existsSync(c)) return toUrl(c); } catch (_) {} }
+          return null;
+        })()
+      },
+      pageIndex: index
+    };
+  }
+  return { kind: 'image', dataUrl: archives.readPageDataUrl(filePath, index) };
 });
 
 // texto da pagina (para o painel de IA); '' = paginas de imagem (escaneadas)
@@ -181,6 +202,11 @@ ipcMain.handle('book:text', async (_e, { filePath, index }) => {
 // ---------------- IA (Qwen / compativel OpenAI) ----------------
 ipcMain.handle('ai:ask', async (_e, { kind, file, pageIdx, question, rangePages }) => {
   const st = state.load();
+  // sem chave/URL configurada -> erro amigavel em vez de stack no console
+  const prov = st.settings.aiProvider || 'qwen';
+  if (prov === 'qwen' && !(st.settings.aiKey || '').trim()) {
+    throw new Error('Chave do Qwen nao configurada. Abra Opções (Ctrl+,) → aba IA e cole a chave. Para uso local, escolha "Compatível OpenAI" + URL do Ollama.');
+  }
   const name = require('path').basename(file);
   let pages;
   if (/\.pdf$/i.test(file)) {
@@ -198,6 +224,10 @@ ipcMain.handle('ai:ask', async (_e, { kind, file, pageIdx, question, rangePages 
 
 ipcMain.handle('ai:test', async () => {
   const st = state.load();
+  const prov = st.settings.aiProvider || 'qwen';
+  if (prov === 'qwen' && !(st.settings.aiKey || '').trim()) {
+    throw new Error('Chave do Qwen nao configurada. Cole a chave no campo acima e salve antes de testar.');
+  }
   return ai.chat(st.settings, [
     { role: 'system', content: 'Responda apenas com a palavra: OK' },
     { role: 'user', content: 'Teste de conexao.' }

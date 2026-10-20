@@ -52,7 +52,8 @@ async function openPath(p) {
   try {
     if (/\.pdf$/i.test(p) || /\.(cbz|cbr|cbt|cb7|zip|rar|7z|tar)$/i.test(p)) {
       const info = await neko.openBook(p);
-      book = { file: p, count: info.pages ? info.pages.length : info.pageCount, pages: info.pages || [] };
+      book = { file: p, kind: info.kind || 'image', count: info.pages ? info.pages.length : info.pageCount, pages: info.pages || [] };
+      _pdfDoc = null; _pdfDocKey = null; // PDF novo: descarta documento anterior
       el.bookTitle.textContent = p.split(/[\\/]/).pop();
       // metadados podem definir mangá
       const meta = await neko.metaOf(p);
@@ -119,10 +120,99 @@ async function render(animate) {
 
 async function getPage(idx) {
   if (pageCache.has(idx)) { const v = pageCache.get(idx); pageCache.delete(idx); pageCache.set(idx, v); return v; }
-  const url = await neko.pageImage(book.file, idx);
+  let url;
+  if (book.kind === 'pdf') {
+    // render no Chromium via pdfjs (estilo pdfcraft): nunca sai pagina em branco
+    url = await renderPdfPageToDataUrl(idx);
+  } else {
+    const r = await neko.pageImage(book.file, idx);
+    url = (r && typeof r === 'object' && r.kind === 'image') ? r.dataUrl : r; // compat p/ versoes antigas
+  }
   pageCache.set(idx, url);
   while (pageCache.size > 8) pageCache.delete(pageCache.keys().next().value);
   return url;
+}
+
+// ---- pdfjs no renderer: carrega o lib uma vez, abre o doc, rasteriza a pagina pedida ----
+let _pdfjsLib = null, _pdfDoc = null, _pdfDocKey = null, _pdfViewerCfg = null;
+const _pdfPending = new Map(); // idx -> Promise (dedup de fetches concorrentes)
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('falha ao carregar ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensurePdfjs() {
+  if (_pdfjsLib !== null) return _pdfjsLib;
+  // pdf.min.js (UMD legacy) define window.pdfjsLib — sem import() dinâmico,
+  // funciona com contextIsolation e file:// normalmente.
+  for (const src of ['./vendor/pdfjs/pdf.min.js',
+                     'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js']) {
+    try { await loadScript(src); } catch (_) { continue; }
+    if (window.pdfjsLib) { _pdfjsLib = window.pdfjsLib; return _pdfjsLib; }
+  }
+  _pdfjsLib = false;
+  return _pdfjsLib;
+}
+
+async function getPdfDoc() {
+  const lib = await ensurePdfjs();
+  if (!lib) throw new Error('Biblioteca de PDF indisponivel (sem vendor/pdfjs e sem rede). Converta o PDF para CBZ ou abra um CBZ.');
+  if (_pdfDoc && _pdfDocKey === book.file + ':' + book.count) return _pdfDoc;
+  const r = await neko.pageImage(book.file, 0);           // resposta p/ PDF traz bytes + config
+  if (!r || r.kind !== 'pdf') throw new Error('Resposta inesperada ao abrir o PDF.');
+  _pdfViewerCfg = r.viewer || {};
+  // worker local em file:// (nucleo do Chromium carrega workers de file://);
+  // se falhar, o proprio worker bundle vira o workerSrc (fallback in-document).
+  lib.GlobalWorkerOptions.workerSrc = _pdfViewerCfg.workerSrc || './vendor/pdfjs/pdf.worker.min.js';
+  const data = Uint8Array.from(r.bytes);
+  let docParams;
+  try {
+    docParams = await lib.getDocument({
+      data,
+      standardFontDataUrl: _pdfViewerCfg.standardFontBase ? _pdfViewerCfg.standardFontBase + '/' : undefined,
+      isEvalSupported: false,
+      useSystemFonts: true
+    }).promise;
+  } catch (e) {
+    // tenta de novo sem worker remoto (roda na main thread)
+    lib.GlobalWorkerOptions.workerSrc = '';
+    docParams = await lib.getDocument({
+      data,
+      standardFontDataUrl: _pdfViewerCfg.standardFontBase ? _pdfViewerCfg.standardFontBase + '/' : undefined,
+      isEvalSupported: false,
+      useSystemFonts: true,
+      disableWorker: true
+    }).promise;
+  }
+  _pdfDoc = docParams;
+  _pdfDocKey = book.file + ':' + book.count;
+  return _pdfDoc;
+}
+
+async function renderPdfPageToDataUrl(idx) {
+  if (_pdfPending.has(idx)) return _pdfPending.get(idx);
+  const p = (async () => {
+    const doc = await getPdfDoc();
+    const page = await doc.getPage(idx + 1);
+    const base = page.getViewport({ scale: 1 });
+    const zone = el.dropzone.getBoundingClientRect();
+    const targetW = Math.max(600, Math.min(2200, (dbl ? zone.width / 2 : zone.width) * (window.devicePixelRatio || 1)));
+    const scale = Math.min(3, Math.max(0.5, targetW / base.width));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  })().finally(() => _pdfPending.delete(idx));
+  _pdfPending.set(idx, p);
+  return p;
 }
 
 function prefetch() {
