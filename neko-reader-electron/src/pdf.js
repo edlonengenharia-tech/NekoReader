@@ -30,7 +30,31 @@ async function getDoc(file) {
   const st = fs.statSync(file);
   if (_doc && _docKey === file + ':' + st.mtimeMs) return _doc;
   const data = new Uint8Array(fs.readFileSync(file));
-  _doc = await lib.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+
+  // Cabeçalho de segurança: PDF real? (arquivos .pdf que são HTML/EPUB disfarçado etc.)
+  const head = Buffer.from(data.subarray(0, Math.min(1024, data.length))).toString('latin1');
+  if (!head.startsWith('%PDF-')) {
+    throw new Error('Este arquivo não é um PDF válido (cabeçalho ausente). Se for um mangá protegido de loja (Kobo/Kindle), converta-o para CBZ/PDF padrão.');
+  }
+
+  // Força o worker em processo no Node (Electron main): sem isso o pdfjs tenta
+  // criar Worker via URL de arquivo e falha silenciosamente -> "não abre PDF".
+  try {
+    lib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+    const PdfWorker = lib.PDFWorker || lib.Worker;
+    var worker = PdfWorker ? new PdfWorker({ name: 'neko-pdf-worker' }) : null;
+  } catch (_) { var worker = null; }
+
+  const params = { data, useSystemFonts: true, isEvalSupported: false, disableFontFace: true };
+  if (worker) params.worker = worker;
+  try {
+    _doc = await lib.getDocument(params).promise;
+  } catch (e) {
+    // senha / formato exótico -> mensagem clara em vez de erro cru do pdfjs
+    const msg = String(e && e.message || e);
+    if (/password/i.test(msg)) throw new Error('Este PDF exige senha. Remova a proteção ou abra outro arquivo.');
+    throw new Error('Não foi possível abrir o PDF: ' + msg);
+  }
   _docKey = file + ':' + st.mtimeMs;
   return _doc;
 }

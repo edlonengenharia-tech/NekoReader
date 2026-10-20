@@ -39,14 +39,18 @@
         <h3>▶ Continuar lendo</h3>
         <div id="continue-row"></div>
       </section>
-      <section>
+      <section id="lib-wrap">
         <h3>Todos os itens</h3>
         <div id="lib-grid"></div>
       </section>
       <div class="side-foot">
         <button id="btn-addfolder" class="pill small">＋ Adicionar pasta</button>
+        <span class="hint">arraste uma pasta para a janela para adicioná-la</span>
       </div>
     </aside>
+
+    <!-- alca de redimensionamento da biblioteca -->
+    <div id="resizer" title="Arraste para redimensionar a biblioteca"></div>
 
     <!-- ===== area de leitura ===== -->
     <main id="reader">
@@ -127,6 +131,10 @@
         <label><input type="checkbox" id="opt-assoc" /> Associar CBZ/CBR/CBT/CB7/PDF ao NekoReader no Explorer</label>
         <p class="hint">A associação escreve em HKCU (não exige administrador). O duplo clique no arquivo abre direto no leitor.</p>
         <div id="assoc-status" class="hint"></div>
+
+        <h3 style="margin-top:10px">Pastas da biblioteca</h3>
+        <div id="folders-list" class="folders-list"></div>
+        <button type="button" id="opt-addfolder" class="pill small">＋ Adicionar pasta…</button>
       </section>
 
       <menu>

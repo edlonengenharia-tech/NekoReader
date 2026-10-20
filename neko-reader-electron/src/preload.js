@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('neko', {
   setState: (patch) => ipcRenderer.invoke('state:set', patch),
 
   showInFolder: (p) => ipcRenderer.invoke('shell:showItem', p),
+  setAssoc: (on) => ipcRenderer.invoke('assoc:set', on),
 
   onOpenPath: (cb) => ipcRenderer.on('open-path', (_e, p) => cb(p))
 });

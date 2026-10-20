@@ -112,12 +112,56 @@ ipcMain.handle('lib:scan', async (_e, folders) => lib.scan(folders));
 ipcMain.handle('lib:cover', async (_e, filePath) => lib.coverDataUrl(filePath));
 ipcMain.handle('lib:meta', async (_e, filePath) => lib.readComicInfo(filePath));
 
+// associacao de arquivos no Windows (HKCU\...\OpenWithProgids - sem admin)
+const ASSOC_EXTS = ['.cbz', '.cbr', '.cbt', '.cb7', '.pdf'];
+function runReg(argsList) {
+  const { spawnSync } = require('child_process');
+  for (const a of argsList) {
+    const r = spawnSync('reg', a, { windowsHide: true });
+    if (r.error || r.status !== 0) return false;
+  }
+  return true;
+}
+function setAssociations(on) {
+  if (process.platform !== 'win32') return { ok: false, msg: 'Disponivel apenas no Windows.' };
+  try {
+    const exe = process.execPath.replace(/"/g, '');
+    if (on) {
+      const ok = runReg([
+        ['add', 'HKCU\\Software\\Classes\\NekoReader.File', '/ve', '/d', 'NekoReader Comic Book', '/f'],
+        ['add', 'HKCU\\Software\\Classes\\NekoReader.File\\DefaultIcon', '/ve', '/d', `"${exe}",0`, '/f'],
+        ['add', 'HKCU\\Software\\Classes\\NekoReader.File\\shell\\open\\command', '/ve', '/d', `"${exe}" "%1"`, '/f'],
+      ]);
+      if (!ok) return { ok: false, msg: 'Falha ao registrar o tipo NekoReader.File (comando reg.exe).' };
+      for (const ext of ASSOC_EXTS) {
+        runReg(['add', `HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`, 'NekoReader.File', '/t', 'REG_SZ', '/d', '', '/f']);
+      }
+      // SHChangeNotify via PowerShell -> Explorer atualiza sem logout
+      const { execSync } = require('child_process');
+      try {
+        execSync('powershell -NoProfile -Command "if (-not ([System.Management.Automation.PSTypeName]\'SHN\').Type) { Add-Type -Namespace N -Name SHN -MemberDefinition \'[System.Runtime.InteropServices.DllImport(\\"shell32\\")] public static extern void SHChangeNotify(int e, uint f, IntPtr a, IntPtr b);\'} ; [N.SHN]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)"', { windowsHide: true, stdio: 'ignore' });
+      } catch (_) { /* melhor esforco */ }
+      return { ok: true, msg: 'Associação ativada: duplo clique em CBZ/CBR/CBT/CB7/PDF abre no NekoReader.' };
+    } else {
+      runReg(['delete', 'HKCU\\Software\\Classes\\NekoReader.File', '/f']);
+      for (const ext of ASSOC_EXTS) {
+        runReg(['delete', `HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`, 'v', 'NekoReader.File', '/f']);
+      }
+      return { ok: true, msg: 'Associação removida.' };
+    }
+  } catch (e) {
+    return { ok: false, msg: 'Erro: ' + (e.message || e) };
+  }
+}
+ipcMain.handle('assoc:set', (_e, on) => setAssociations(!!on));
+
 ipcMain.handle('book:open', async (_e, filePath) => {
-  const info = await archives.listPages(filePath).catch(async (err) => {
-    if (/\.pdf$/i.test(filePath)) return { kind: 'pdf', pages: await pdfjs.pageCount(filePath) };
-    throw err;
-  });
-  return info; // { kind, pageNames:[], pageCount }
+  // PDF primeiro: pageCount nao deve ser "engolido" pelo parser de arquivos compactados
+  if (/\.pdf$/i.test(filePath)) {
+    const info = await pdfjs.pageCount(filePath);   // excecoes viram mensagem amigavel no renderer
+    return { kind: 'pdf', pages: [], pageCount: info };
+  }
+  return archives.listPages(filePath); // { kind, pageNames:[], pageCount }
 });
 
 ipcMain.handle('book:page', async (_e, { filePath, index }) => {
