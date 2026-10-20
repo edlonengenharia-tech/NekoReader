@@ -45,9 +45,15 @@ for /f "delims=" %%V in ('"%NODE%" --version') do echo [OK] node %%V detectado -
 rem ---------- [3/5] Compila ----------
 echo.
 echo --- Compilando a solucao (%CFG%) ---
+rem Limpa caches obj/bin antigos (versoes anteriores do projeto usaram pacotes que
+rem hoje nao existem mais - ex.: Docnet.Core.SkiaSharp - e o project.assets.json
+rem guardado em obj/ pode fazer o restore revalidar referencias velhas).
+if exist "MangaReader\obj"      rd /s /q "MangaReader\obj"
+if exist "MangaReader.Tests\obj" rd /s /q "MangaReader.Tests\obj"
 "%DOTNET%" build MangaReader.sln -c %CFG% -v minimal
 if not errorlevel 1 goto build_ok
 echo [ERRO] Falha na compilacao. Corrija os erros acima e rode de novo.
+echo        Dica: se aparecer NU1101, rode  "%DOTNET%" nuget locals all --clear  e tente de novo.
 pause & exit /b 1
 :build_ok
 

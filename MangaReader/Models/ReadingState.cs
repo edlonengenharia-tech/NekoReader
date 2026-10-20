@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;   // StringBuilder
 
 namespace MangaReader.Models;
 

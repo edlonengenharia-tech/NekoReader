@@ -41,6 +41,17 @@ dotnet run            # abre a interface
 dotnet run -- "D:\Comics\One Piece - 104.cbz"   # abre direto um arquivo
 ```
 
+### Solução de problemas comuns no build (Windows)
+
+| Sintoma | Causa / correção |
+|---|---|
+| `NU1101: Docnet.Core.SkiaSharp` | Cache antigo de restore. Delete as pastas `obj/` e `bin/` dos dois projetos (o `TESTE.cmd` já faz isso) e, se persistir, `dotnet nuget locals all --clear`. O pacote foi removido do projeto — a leitura de PDF agora usa Pdfium via P/Invoke próprio. |
+| `NU1603 ... pdfium nativo (.204 → .256)` | Inofensivo: o feed só tem a build 2018.4.8.**256** da mesma `pdfium.dll`. Fixamos essa versão no csproj e suprimimos o aviso (`NoWarn`). |
+| `NU1902: SharpCompress vulnerabilidade moderada` | GHSA-6c8g-7p36-r338 é uma DoS ao ler cabeçalhos de arquivo corrompidos; aqui só abrimos quadrinhos locais do usuário. Mantemos 0.39 (a mais recente estável). Para reexibir o aviso, remova o comentário de segurança no csproj. |
+| `WFAC010: remova o DPI do app.manifest` | Resolvido: o DPI agora é configurado pela API (`Application.SetHighDpiMode` + `<ApplicationHighDpiMode>`), conforme orienta o warning. |
+| `CS0103 ApplicationConfiguration` | Não use o helper gerado pelo designer em apps sem `ApplicationHighDpiMode`; o `Program.cs` atual chama as APIs diretamente. |
+| `pdfium.dll não encontrada` no output | Rode `dotnet restore` antes do build (a cópia da nativa depende do cache do NuGet). |
+
 ## Testes automatizados
 
 Projeto `MangaReader.Tests` (xUnit, `dotnet test`): gera CBZs válidos em memória

@@ -1,4 +1,5 @@
-using MangaReader.Models;
+using System.Drawing.Drawing2D;   // LinearGradientBrush, InterpolationMode
+using MangaReader.Models;         // FitMode, PageLayout
 
 namespace MangaReader.Views;
 
@@ -22,8 +23,7 @@ public sealed class PagePanel : Control
     private int _flipDirection; // +1 avança, -1 volta
     private System.Windows.Forms.Timer? _flipTimer;
 
-    public event EventHandler<int>? PageIndexChanged; // clique nas bordas → navegar
-
+    /// <summary>Modo de ajuste da página (lido no LayoutPages; CycleFit o alterna).</summary>
     public FitMode Fit { get; set; } = FitMode.FitWidth;
     public bool FlipAnimationEnabled { get; set; } = true;
 
@@ -77,7 +77,9 @@ public sealed class PagePanel : Control
         base.OnMouseMove(e);
         if (_dragging && _engine.Zoom > 1.0)
         {
-            _panOffset += new PointF(e.X - _dragStart.X, e.Y - _dragStart.Y);
+            // PointF não sobrecarrega operator+ — soma componente a componente.
+            _panOffset = new PointF(_panOffset.X + (e.X - _dragStart.X),
+                                    _panOffset.Y + (e.Y - _dragStart.Y));
             _dragStart = e.Location;
             Invalidate();
         }
@@ -156,23 +158,24 @@ public sealed class PagePanel : Control
     private RectangleF[] LayoutPages(System.Drawing.Bitmap[] bitmaps, out SizeF totalSize)
     {
         float availW = Width, availH = Height;
-        float scale = _engine.Zoom;
+        float scale = (float)_engine.Zoom;   // Zoom é double → conversão explícita p/ float
 
-        // Escala base pelo modo de ajuste
+        // Escala base pelo modo de ajuste (usa a propriedade Fit, não o tipo FitMode)
         float baseScale = _engine.Layout == PageLayout.DoublePage && bitmaps.Length == 2
-            ? FitMode switch
+            ? Fit switch
             {
-                FitMode.FitWidth  => availW / (bitmaps.Sum(b => (float)b.Width)),
-                FitMode.FitHeight => availH / bitmaps.Max(b => (float)b.Height),
-                FitMode.FitPage   => Math.Min(availW / bitmaps.Sum(b => (float)b.Width),
-                                              availH / bitmaps.Max(b => (float)b.Height)),
+                FitMode.FitWidth  => availW / Math.Max(1f, bitmaps.Sum(b => (float)b.Width)),
+                FitMode.FitHeight => availH / Math.Max(1f, bitmaps.Max(b => (float)b.Height)),
+                FitMode.FitPage   => Math.Min(availW / Math.Max(1f, bitmaps.Sum(b => (float)b.Width)),
+                                              availH / Math.Max(1f, bitmaps.Max(b => (float)b.Height))),
                 _                 => 1f,
             }
-            : FitMode switch
+            : Fit switch
             {
-                FitMode.FitWidth  => availW / bitmaps[0].Width,
-                FitMode.FitHeight => availH / bitmaps[0].Height,
-                FitMode.FitPage   => Math.Min(availW / bitmaps[0].Width, availH / bitmaps[0].Height),
+                FitMode.FitWidth  => availW / Math.Max(1f, bitmaps[0].Width),
+                FitMode.FitHeight => availH / Math.Max(1f, bitmaps[0].Height),
+                FitMode.FitPage   => Math.Min(availW / Math.Max(1f, bitmaps[0].Width),
+                                              availH / Math.Max(1f, bitmaps[0].Height)),
                 _                 => 1f,
             };
 

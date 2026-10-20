@@ -7,13 +7,11 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        // DPI awareness por manifest + configuração moderna do .NET
-        ApplicationConfiguration.Configure(cfg =>
-        {
-            cfg.DefaultFont = new Font("Segoe UI", 9f);
-            cfg.HighDpiMode = HighDpiMode.PerMonitorV2;
-            cfg.UseCompatibleTextRendering = false;
-        });
+        // DPI awareness + fonte padrão via API (equivalente ao ApplicationConfiguration
+        // gerado pelo designer — funciona mesmo com <ApplicationHighDpiMode> no csproj).
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
         var form = new MainForm();
         // Abre arquivo passado via "Abrir com..." do Explorer (args[1])
