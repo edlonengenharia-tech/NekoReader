@@ -22,15 +22,21 @@ public sealed class ReadingState
     public int ToPhysicalIndex(int displayIndex, bool rightToLeft)
         => rightToLeft ? Math.Max(0, TotalPages - 1 - displayIndex) : displayIndex;
 
-    /// <summary>Chave estável (caminho + tamanho) usada no cache de estado.</summary>
-    public string CacheKey
+    /// <summary>
+    /// Chave estável (caminho + tamanho) usada no cache de estado. O tamanho é
+    /// gravado junto ao salvar (<see cref="FileLength"/>) para que a chave seja
+    /// determinística e não dependa do arquivo ainda existir em disco — assim
+    /// Save e Load sempre convergem para o mesmo nome de arquivo JSON.
+    /// </summary>
+    public long FileLength { get; set; }
+
+    public string CacheKey => $"{FilePath}|{FileLength}";
+
+    /// <summary>Preenche <see cref="FileLength"/> consultando o disco (melhor esforço).</summary>
+    public ReadingState WithFileSizeFromDisk()
     {
-        get
-        {
-            long len = 0;
-            try { if (File.Exists(FilePath)) len = new FileInfo(FilePath).Length; } catch { }
-            return $"{FilePath}|{len}";
-        }
+        try { if (File.Exists(FilePath)) FileLength = new FileInfo(FilePath).Length; } catch { }
+        return this;
     }
 
     public static string SanitizeKey(string key)

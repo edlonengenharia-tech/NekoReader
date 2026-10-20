@@ -32,6 +32,9 @@ public sealed class ReadingStateService
         try
         {
             state.LastOpenedUtc = DateTime.UtcNow;
+            // Garante que a chave inclua o tamanho real do arquivo (se existir),
+            // tornando Save/Load determinísticos e compatíveis entre si.
+            if (state.FileLength == 0) state.WithFileSizeFromDisk();
             File.WriteAllText(PathFor(state), JsonConvert.SerializeObject(state, Formatting.Indented));
         }
         catch { /* falha silenciosa: estado é conveniência, não dado crítico */ }
@@ -41,11 +44,27 @@ public sealed class ReadingStateService
     {
         try
         {
-            long len = new FileInfo(filePath).Length;
-            var key = ReadingState.SanitizeKey($"{filePath}|{len}") + ".json";
-            var file = System.IO.Path.Combine(_dir, key);
-            if (!File.Exists(file)) return null;
-            return JsonConvert.DeserializeObject<ReadingState>(File.ReadAllText(file));
+            long len = 0;
+            try { if (File.Exists(filePath)) len = new FileInfo(filePath).Length; } catch { }
+
+            // Prioriza a chave com o tamanho atual; se o livro mudou de tamanho
+            // (ou sumiu do disco), faz fallback para qualquer estado salvo cujo
+            // FilePath bata com o caminho pedido — nada de leitura perdida.
+            var exact = System.IO.Path.Combine(_dir, ReadingState.SanitizeKey($"{filePath}|{len}") + ".json");
+            if (File.Exists(exact))
+                return JsonConvert.DeserializeObject<ReadingState>(File.ReadAllText(exact));
+
+            foreach (var f in Directory.EnumerateFiles(_dir, "*.json"))
+            {
+                try
+                {
+                    var s = JsonConvert.DeserializeObject<ReadingState>(File.ReadAllText(f));
+                    if (s is not null && string.Equals(s.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                        return s;
+                }
+                catch { /* ignora arquivos corrompidos */ }
+            }
+            return null;
         }
         catch { return null; }
     }
