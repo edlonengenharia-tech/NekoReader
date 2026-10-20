@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Requer Windows para WinForms -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>MangaReader</AssemblyName>
+    <RootNamespace>MangaReader</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ZIP (CBZ), TAR (CBT), RAR (CBR) e 7z (CB7): uma única lib cobre tudo -->
+    <PackageReference Include="SharpCompress" Version="0.39.0" />
+    <!-- PDF: apenas a nativa do Pdfium (engine do Chrome). O binding C# é P/Invoke
+         próprio em Services/PdfiumNative.cs — sem dependências "exóticas" no nuget.org. -->
+    <PackageReference Include="PdfiumViewer.Native.x86_64.v8-xfa" Version="2018.4.8.204" />
+    <!-- Metadados / serialização do estado de leitura -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <!-- Copia a pdfium.dll para a pasta da aplicação (build e publish).
+       O glob usa o id do pacote em minúsculas, como o NuGet grava na package cache. -->
+  <Target Name="CopyPdfiumNative" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <PdfiumDll Include="$(NuGetPackageRoot)pdfiumviewer.native.x86_64.v8-xfa\**\pdfium.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PdfiumDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
+          Condition="'@(PdfiumDll)' != ''" />
+    <Copy SourceFiles="@(PdfiumDll)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true"
+          Condition="'@(PdfiumDll)' != '' and '$(PublishDir)' != ''" />
+    <Warning Text="pdfium.dll não encontrada em $(NuGetPackageRoot) - rode 'dotnet restore' antes."
+             Condition="'@(PdfiumDll)' == ''" />
+  </Target>
+
+</Project>
