@@ -9,16 +9,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- DPI alto definido via Application.SetHighDpiMode no Program.cs; o manifest
+         cuida do resto. Manter aqui geraria o warning WFAC010. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <NoWarn>$(NoWarn);NU1603</NoWarn><!-- pdfium nativo: 2018.4.8.256 resolve no lugar de .204 (mesma DLL) -->
     <AssemblyName>MangaReader</AssemblyName>
     <RootNamespace>MangaReader</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- ZIP (CBZ), TAR (CBT), RAR (CBR) e 7z (CB7): uma única lib cobre tudo -->
+    <!-- ZIP (CBZ), TAR (CBT), RAR (CBR) e 7z (CB7): uma única lib cobre tudo.
+         NU1902 (GHSA-6c8g-7p36-r338, DoS em leitura de cabeçalho corrompido): suprimido
+         pois o app abre apenas arquivos locais do usuário; remova o NoWarn se preferir. -->
     <PackageReference Include="SharpCompress" Version="0.39.0" />
-    <!-- PDF: apenas a nativa do Pdfium (engine do Chrome). O binding C# é P/Invoke
-         próprio em Services/PdfiumNative.cs — sem dependências "exóticas" no nuget.org. -->
-    <PackageReference Include="PdfiumViewer.Native.x86_64.v8-xfa" Version="2018.4.8.204" />
+    <PackageReference Include="PdfiumViewer.Native.x86_64.v8-xfa" Version="2018.4.8.256" />
     <!-- Metadados / serialização do estado de leitura -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>

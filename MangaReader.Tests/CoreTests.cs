@@ -134,8 +134,12 @@ public class ArchiveBookTests : IDisposable
         var path = TestBookFactory.CreateCbz(_dir, "volume03.cbz", pages: 12);
         using var archive = ArchiveBook.Open(path);
         var names = archive.Pages.Select(p => p.Key).ToList();
-        var i2 = names.FindIndex(n => n.EndsWith("page_02.png"));
-        var i10 = names.FindIndex(n => n.EndsWith("page_10.png"));
+        var page2 = names.FirstOrDefault(n => n.EndsWith("page_02.png"));
+        var page10 = names.FirstOrDefault(n => n.EndsWith("page_10.png"));
+        Assert.NotNull(page2);
+        Assert.NotNull(page10);
+        var i2 = names.IndexOf(page2!);
+        var i10 = names.IndexOf(page10!);
         Assert.True(i2 >= 0 && i10 >= 0);
         Assert.True(i2 < i10, "ordenação natural esperada: 02 antes de 10");
     }

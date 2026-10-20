@@ -2,14 +2,9 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="MangaReader.app"/>
 
-  <!-- DPI awareness por manifest (complementa HighDpiMode.PerMonitorV2) -->
-  <application xmlns="urn:schemas-microsoft-com:asm.v3">
-    <windowsSettings>
-      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
-      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
-    </windowsSettings>
-  </application>
-
+  <!-- DPI awareness: definido via ApplicationHighDpiMode (csproj) +
+       Application.SetHighDpiMode (Program.cs). O manifest NÃO deve conter
+       dpiAware/dpiAwareness, sob pena do warning WFAC010. -->
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
       <!-- Windows 10/11 -->
