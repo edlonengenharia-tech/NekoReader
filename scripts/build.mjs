@@ -75,6 +75,15 @@ if (doDist) {
     '-o', OUT_DIR,
   ]);
 
+  // Checagem da engine de PDF: a pdfium.dll deve ser copiada pelo target do csproj
+  const pdfium = path.join(OUT_DIR, 'pdfium.dll');
+  if (existsSync(pdfium)) {
+    console.log(`[OK] pdfium.dll presente (${(statSync(pdfium).size / 1024 / 1024).toFixed(1)} MB) — leitura de PDF habilitada`);
+  } else {
+    console.warn('[AVISO] pdfium.dll ausente em dist/ — PDFs ficarão indisponíveis (CBZ/CBR/CBT/CB7 continuam funcionando).\n' +
+                 '        Rode "dotnet restore" e refaça o publish; verifique se o pacote PdfiumViewer.Native.x86_64.v8-xfa baixou.');
+  }
+
   // Copia as amostras junto do exe
   const samplesDir = path.join(ROOT, 'samples');
   if (existsSync(samplesDir)) {

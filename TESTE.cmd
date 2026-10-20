@@ -60,19 +60,28 @@ echo [ERRO] Testes falharam.
 pause & exit /b 1
 :test_ok
 
-rem ---------- [5/5] Smoke test: abre o app com o CBZ de exemplo ----------
+rem ---------- [5/5] Smoke test: abre o app com as amostras ----------
 echo.
-echo --- Abrindo MangaReader com samples\sample-cbz.cbz ---
+echo --- Verificando engine de PDF (pdfium.dll) ---
+if exist "MangaReader\bin\%CFG%\net8.0-windows\pdfium.dll" (
+    echo     [OK] pdfium.dll presente - PDFs serao abertos.
+) else (
+    echo     [AVISO] pdfium.dll ausente no build - abra apenas CBZ/CBR neste teste.
+)
+set "ARG1=%CD%\samples\sample-cbz.cbz"
+set "ARG2="
+if exist "%CD%\samples\exemplo-teste.pdf" set "ARG2=%CD%\samples\exemplo-teste.pdf"
+echo --- Abrindo MangaReader com: sample-cbz.cbz exemplo-teste.pdf ---
 echo     (feche a janela do app para o script continuar)
 set "EXE=MangaReader\bin\%CFG%\net8.0-windows\MangaReader.exe"
 if not exist "%EXE%" set "EXE="
 for /f "delims=" %%F in ('dir /s /b /a-d MangaReader\bin\%CFG%\*MangaReader.exe 2^>nul') do if not defined EXE if /i not "%%~nxF"=="MangaReader.dll" set "EXE=%%F"
 if defined EXE goto launch_exe
-call "%DOTNET%" run --project MangaReader -c %CFG% --no-build -- "%CD%\samples\sample-cbz.cbz"
+call "%DOTNET%" run --project MangaReader -c %CFG% --no-build -- "%ARG1%" "%ARG2%"
 goto run_checked
 :launch_exe
 echo     exe: %EXE%
-call "%EXE%" "%CD%\samples\sample-cbz.cbz"
+call "%EXE%" "%ARG1%" "%ARG2%"
 :run_checked
 if not errorlevel 1 goto run_ok
 echo [ERRO] O aplicativo terminou com codigo de erro.

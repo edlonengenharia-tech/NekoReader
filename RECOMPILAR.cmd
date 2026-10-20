@@ -48,10 +48,13 @@ pause & exit /b 1
 :pub_ok
 
 rem ---------- Copia amostras junto do exe ----------
-if not exist samples goto samples_done
-if not exist "%OUT%\samples" mkdir "%OUT%\samples"
-copy /y samples\*.cbz "%OUT%\samples\" >nul 2>&1
-:samples_done
+if exist samples (
+    if not exist "%OUT%\samples" mkdir "%OUT%\samples"
+    copy /y samples\*.cbz "%OUT%\samples\" >nul 2>&1
+    copy /y samples\*.pdf "%OUT%\samples\" >nul 2>&1
+)
+echo - pdfium.dll na pasta de destino:
+dir /b "%OUT%\pdfium.dll" 2>nul || echo   [AVISO] pdfium.dll NAO encontrada - PDFs ficarao indisponiveis (CBZ/CBR ok). Rode RECOMPILAR apos 'dotnet restore'.
 
 echo.
 echo ============================================================

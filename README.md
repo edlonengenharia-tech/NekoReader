@@ -63,7 +63,7 @@ MangaReader/
 │   └── ReadingState.cs         # estado persistido por livro
 ├── Services/
 │   ├── ArchiveBook.cs          # CBZ/CBR/CBT/CB7 via SharpCompress (streaming)
-│   ├── PdfBook.cs              # PDF via Docnet.Core (MuPDF embutido)
+│   ├── PdfBook.cs              # PDF via Pdfium (P/Invoke próprio) + PdfiumNative.cs
 │   ├── IBook.cs                # abstração comum + BookFactory
 │   ├── MetadataService.cs      # parser de ComicInfo.xml + fallback do nome
 │   ├── NaturalFileNameComparer.cs  # ordenação 001,002,...,010 correta
@@ -80,7 +80,8 @@ MangaReader.Tests/
 └── CoreTests.cs                # CBZ sintético, RTL, ordenação, metadados, estado
 samples/
 ├── sample-cbz.cbz              # gibi de teste (12 páginas PNG 800×1200)
-└── manga-one-piece-104.cbz     # teste de parsing "Série - Número" (10 páginas)
+├── manga-one-piece-104.cbz     # teste de parsing "Série - Número" (10 páginas)
+└── exemplo-teste.pdf           # PDF válido de 3 páginas (testa a engine Pdfium)
 scripts/                        # orquestradores Node (build/test/dist/setup)
 tools/
 ├── shellext-reg/               # .reg de associação de arquivos (sem COM)
@@ -92,8 +93,8 @@ TESTE.cmd · RECOMPILAR.cmd · RECOMPILAR-NPM.cmd · package.json · MangaReader
 
 | Formato | Biblioteca | Motivo |
 |---|---|---|
-| CBZ / CBT / CBR / CB7 | **SharpCompress 0.38** | Uma única API lê ZIP, TAR, RAR e 7z; detecta o formato pelo header (não pela extensão); leitura em streaming sem extrair para disco. Alternativa popular: `DotNetZip`/`System.IO.Compression` só cobre ZIP. |
-| PDF | **Docnet.Core.SkiaSharp 1.1** | Wrapper gerenciado do MuPDF; renderiza páginas como PNG sem depender de Adobe/poppler. Alternativas: `PdfiumViewer` (mantém apenas imagens já rasterizadas), `PDFsharp` (não renderiza conteúdo). |
+| CBZ / CBT / CBR / CB7 | **SharpCompress 0.39** | Uma única API lê ZIP, TAR, RAR e 7z; detecta o formato pelo header (não pela extensão); leitura em streaming sem extrair para disco. A 0.39 corrige a vulnerabilidade moderada (GHSA-6c8g-7p36-r338) reportada na 0.38. Alternativa popular: `DotNetZip`/`System.IO.Compression` só cobre ZIP. |
+| PDF | **Pdfium** via P/Invoke próprio (`Services/PdfiumNative.cs`) + nativa do pacote **PdfiumViewer.Native.x86_64.v8-xfa** | O Pdfium é a engine de PDF do Google Chrome: renderiza qualquer página como bitmap com fidelidade, sem Adobe/poppler. Mantemos apenas a DLL nativa (pacote amplamente disponível no nuget.org) e escrevemos o binding C# nós mesmos — sem dependências "exóticas". *(Antes usávamos `Docnet.Core.SkiaSharp`, que não existe mais no nuget.org e quebrava o restore — NU1101.)* |
 | Serialização | **Newtonsoft.Json 13** | Persistência simples dos estados de leitura (`System.Text.Json` também serviria). |
 
 ## Decisões de arquitetura
