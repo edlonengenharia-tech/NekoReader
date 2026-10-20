@@ -268,7 +268,7 @@ internal sealed class ExternalExtractor
             var args = _kind switch
             {
                 Kind.SevenZip => $"e -y -o\"{tmp}\" \"{archive}\" -- \"{entryName}\"",
-                _ => `x -y "{archive}" "{tmp}\" "{entryName}"`,
+                _ => $"x -y \"{archive}\" \"{tmp}\\\" \"{entryName}\"",
             };
             var run = Process.Start(new ProcessStartInfo
             {
