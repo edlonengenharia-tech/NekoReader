@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>NekoReader</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="dark">
+
+  <!-- ===== barra de titulo custom (janela frameless) ===== -->
+  <header id="titlebar">
+    <div class="tb-left">
+      <span class="logo">🐱 NekoReader</span>
+      <button id="btn-open" class="pill">📂 Abrir</button>
+      <button id="btn-lib" class="pill">📚 Biblioteca</button>
+      <button id="btn-opts" class="pill">⚙ Opções</button>
+    </div>
+    <div id="book-title"></div>
+    <div class="tb-right">
+      <button id="tb-min" title="Minimizar">─</button>
+      <button id="tb-max" title="Maximizar">▢</button>
+      <button id="tb-close" title="Fechar">✕</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <!-- ===== sidebar / biblioteca ===== -->
+    <aside id="sidebar">
+      <div class="side-head">
+        <input id="search" type="search" placeholder="Buscar na biblioteca…" />
+      </div>
+      <div class="chips">
+        <button class="chip active" data-filter="all">Todos</button>
+        <button class="chip" data-filter="unread">Não lidos</button>
+        <button class="chip" data-filter="manga">Mangá</button>
+        <button class="chip" data-filter="recent">↻ Recentes</button>
+      </div>
+      <section id="continue-wrap">
+        <h3>▶ Continuar lendo</h3>
+        <div id="continue-row"></div>
+      </section>
+      <section>
+        <h3>Todos os itens</h3>
+        <div id="lib-grid"></div>
+      </section>
+      <div class="side-foot">
+        <button id="btn-addfolder" class="pill small">＋ Adicionar pasta</button>
+      </div>
+    </aside>
+
+    <!-- ===== area de leitura ===== -->
+    <main id="reader">
+      <div id="dropzone">
+        <div id="empty-state">
+          <div class="cover-frame"><img id="last-cover" alt="" hidden /></div>
+          <h1>NekoReader</h1>
+          <p>Arraste um <b>.cbz .cbr .cbt .cb7 .pdf</b> ou uma pasta aqui,<br/>
+             ou clique em <b>📂 Abrir</b>. Atalhos: <kbd>←</kbd><kbd>→</kbd> páginas ·
+             <kbd>F</kbd> tela cheia · <kbd>M</kbd> mangá · <kbd>D</kbd> dupla · <kbd>Tab</kbd> biblioteca</p>
+        </div>
+        <div id="pages" hidden>
+          <div class="page-slot" id="slot0"><img /><div class="flip"></div></div>
+          <div class="page-slot" id="slot1" hidden><img /><div class="flip"></div></div>
+        </div>
+        <div id="error-banner" hidden></div>
+        <div id="hud" hidden>
+          <span id="hud-page"></span>
+          <div id="progress"><div id="progress-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- ===== barra inferior ===== -->
+      <footer id="bottombar">
+        <button class="nav" id="btn-first" title="Primeira (Home)">⏮</button>
+        <button class="nav" id="btn-prev" title="Anterior (←)">◀</button>
+        <span id="page-ind">– / –</span>
+        <button class="nav" id="btn-next" title="Próxima (→)">▶</button>
+        <button class="nav" id="btn-last" title="Última (End)">⏭</button>
+        <i class="sep"></i>
+        <button class="tog" id="btn-manga" title="Modo mangá RTL (M)"> Mangá</button>
+        <button class="tog" id="btn-double" title="Página dupla (D)">Dupla</button>
+        <button class="tog cycle" id="btn-fit" title="Ajuste (W)">Ajuste: Largura</button>
+        <span id="zoom-pct">100%</span>
+        <button class="nav" id="btn-zout">−</button>
+        <button class="nav" id="btn-zin">＋</button>
+        <i class="sep"></i>
+        <button class="tog" id="btn-fs" title="Tela cheia (F)">⛶ Tela cheia</button>
+        <button class="pill small danger" id="btn-close-book">Fechar livro</button>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ===== modal de opções ===== -->
+  <dialog id="options">
+    <form method="dialog">
+      <h2>⚙ Opções</h2>
+      <nav class="tabs">
+        <button type="button" class="tab active" data-tab="reading">Leitura</button>
+        <button type="button" class="tab" data-tab="ui">Interface</button>
+        <button type="button" class="tab" data-tab="win">Windows</button>
+      </nav>
+
+      <section data-pane="reading">
+        <label><input type="checkbox" id="opt-manga" /> Abrir livros em modo mangá (direita→esquerda) por padrão</label>
+        <label><input type="checkbox" id="opt-double" /> Página dupla por padrão</label>
+        <label>Ajuste padrão
+          <select id="opt-fit"><option value="width">Largura</option><option value="height">Altura</option><option value="page">Página</option></select>
+        </label>
+        <label><input type="checkbox" id="opt-flip" /> Animação de virada de página</label>
+        <label>Páginas pré-carregadas <input type="number" id="opt-prefetch" min="0" max="10" /></label>
+        <label><input type="checkbox" id="opt-zones" /> Zonas de clique esq./dir. para folhear</label>
+      </section>
+
+      <section data-pane="ui" hidden>
+        <label>Tema
+          <select id="opt-theme">
+            <option value="dark">Escuro</option>
+            <option value="midnight">Meia-noite</option>
+            <option value="light">Claro</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="opt-showlib" /> Mostrar biblioteca ao iniciar</label>
+        <label>Largura da biblioteca <input type="range" id="opt-side" min="220" max="460" step="10" /></label>
+      </section>
+
+      <section data-pane="win" hidden>
+        <label><input type="checkbox" id="opt-assoc" /> Associar CBZ/CBR/CBT/CB7/PDF ao NekoReader no Explorer</label>
+        <p class="hint">A associação escreve em HKCU (não exige administrador). O duplo clique no arquivo abre direto no leitor.</p>
+        <div id="assoc-status" class="hint"></div>
+      </section>
+
+      <menu>
+        <button type="button" id="opt-cancel" class="pill">Cancelar</button>
+        <button type="submit" id="opt-ok" class="pill primary">OK</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

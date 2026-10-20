@@ -1,1 +1,3 @@
 *.bak
+neko-reader-electron/node_modules/
+neko-reader-electron/dist/
