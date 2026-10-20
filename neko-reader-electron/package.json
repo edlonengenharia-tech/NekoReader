@@ -1,0 +1,88 @@
+{
+  "name": "neko-reader",
+  "productName": "NekoReader",
+  "version": "1.0.0",
+  "description": "Leitor de quadrinhos e mangas (CBZ/CBR/CBT/CB7/PDF) estilo CDisplayEx - Electron, sem .NET",
+  "main": "src/main.js",
+  "author": "NekoReader",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win portable",
+    "dist:installer": "electron-builder --win nsis",
+    "pack": "electron-builder --dir",
+    "sample": "node scripts/make-sample.mjs"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "pdfjs-dist": "^3.11.174",
+    "sevenzip": "^2.0.0",
+    "tar": "^6.2.1"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.nekoreader.app",
+    "productName": "NekoReader",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "vendor/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/7zip-bin/**",
+      "vendor/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "NekoReader-portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "fileAssociations": [
+        {
+          "ext": "cbz",
+          "name": "Comic Book ZIP",
+          "role": "Viewer"
+        },
+        {
+          "ext": "cbr",
+          "name": "Comic Book RAR",
+          "role": "Viewer"
+        },
+        {
+          "ext": "cbt",
+          "name": "Comic Book TAR",
+          "role": "Viewer"
+        },
+        {
+          "ext": "cb7",
+          "name": "Comic Book 7Z",
+          "role": "Viewer"
+        },
+        {
+          "ext": "pdf",
+          "name": "PDF Comic",
+          "role": "Viewer"
+        }
+      ]
+    }
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas": "^0.1.65"
+  }
+}
