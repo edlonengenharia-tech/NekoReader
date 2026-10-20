@@ -92,7 +92,8 @@ MangaReader.Tests/
 samples/
 ├── sample-cbz.cbz              # gibi de teste (12 páginas PNG 800×1200)
 ├── manga-one-piece-104.cbz     # teste de parsing "Série - Número" (10 páginas)
-└── exemplo-teste.pdf           # PDF válido de 3 páginas (testa a engine Pdfium)
+├── exemplo-teste.pdf           # PDF válido de 3 páginas (testa a engine Pdfium)
+└── exemplo-leitor.html         # Protótipo web interativo da UI (abrir no navegador)
 scripts/                        # orquestradores Node (build/test/dist/setup)
 tools/
 ├── shellext-reg/               # .reg de associação de arquivos (sem COM)
