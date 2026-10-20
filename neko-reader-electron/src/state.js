@@ -10,13 +10,19 @@ const DEFAULTS = {
     mangaByDefault: false,
     doublePageByDefault: false,
     fit: 'width',            // width | height | page
-    flipAnimation: true,
+    flipAnimation: true,     // virada de pagina em 3D (realista)
     theme: 'dark',           // dark | midnight | light
     showLibraryOnStart: true,
     sidebarWidth: 300,
     prefetch: 3,
     clickZones: true,
-    associateFiles: false
+    associateFiles: false,
+    keepAwake: false,        // impede o PC de dormir durante a leitura
+    // IA (Qwen / compativel OpenAI)
+    aiProvider: 'qwen',      // qwen | openai_compat
+    aiKey: '',
+    aiBaseUrl: '',
+    aiModel: ''
   },
   libraryFolders: [],
   positions: {},             // file -> { page, total, ts }

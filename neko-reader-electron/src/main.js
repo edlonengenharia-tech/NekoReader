@@ -2,7 +2,7 @@
  * NekoReader - processo principal (Electron)
  * Sem .NET: tudo Node.js. Janela frameless + IPC para abrir livros, biblioteca e configurações.
  */
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, powerSaveBlocker } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,6 +10,7 @@ const archives = require('./archives.js');   // CBZ/CBT/CB7/ZIP/RAR -> buffers d
 const pdfjs = require('./pdf.js');           // PDF -> data-url por pagina
 const lib = require('./library.js');         // varre pastas, gera capas, ComicInfo.xml
 const state = require('./state.js');         // persistencia em %APPDATA%/NekoReader
+const ai = require('./ai.js');               // Qwen / OpenAI-compativel (resumo e perguntas)
 
 let win = null;
 
@@ -169,6 +170,40 @@ ipcMain.handle('book:page', async (_e, { filePath, index }) => {
   return archives.readPageDataUrl(filePath, index);
 });
 
+// texto da pagina (para o painel de IA); '' = paginas de imagem (escaneadas)
+ipcMain.handle('book:text', async (_e, { filePath, index }) => {
+  if (/\.pdf$/i.test(filePath)) {
+    try { return await pdfjs.pageText(filePath, index); } catch (_) { return ''; }
+  }
+  return ''; // quadrinhos sao imagens; OCR e feito por ferramentas externas
+});
+
+// ---------------- IA (Qwen / compativel OpenAI) ----------------
+ipcMain.handle('ai:ask', async (_e, { kind, file, pageIdx, question, rangePages }) => {
+  const st = state.load();
+  const name = require('path').basename(file);
+  let pages;
+  if (/\.pdf$/i.test(file)) {
+    const from = Math.max(0, pageIdx - (rangePages === 'all' ? 0 : 1));
+    const to = rangePages === 'all'
+      ? ((await pdfjs.getDoc(file)).numPages - 1)
+      : pageIdx + (rangePages === 'page' ? 0 : 2);
+    pages = await ai.extractText(file, from, to);
+  } else {
+    pages = [{ page: pageIdx + 1, text: '' }]; // CBZ/CBR: sem camada de texto
+  }
+  const messages = ai.buildMessages(kind, file, name, pages, { question });
+  return ai.chat(st.settings, messages);
+});
+
+ipcMain.handle('ai:test', async () => {
+  const st = state.load();
+  return ai.chat(st.settings, [
+    { role: 'system', content: 'Responda apenas com a palavra: OK' },
+    { role: 'user', content: 'Teste de conexao.' }
+  ]);
+});
+
 // janela frameless
 ipcMain.on('win:minimize', () => win && win.minimize());
 ipcMain.on('win:maximize', () => {
@@ -181,4 +216,15 @@ ipcMain.on('win:fullscreen', (_e, on) => win && win.setFullScreen(!!on));
 ipcMain.handle('state:get', () => state.load());
 ipcMain.handle('state:set', (_e, patch) => state.save(patch));
 
+// manter a tela acordada durante a leitura (powerSaveBlocker do Electron)
+let psbId = null;
+ipcMain.handle('power:awake', (_e, on) => {
+  try {
+    if (on && psbId === null) psbId = powerSaveBlocker.start('prevent-display-sleep');
+    if (!on && psbId !== null) { powerSaveBlocker.stop(psbId); psbId = null; }
+    return true;
+  } catch (_) { return false; }
+});
+
 ipcMain.handle('shell:showItem', (_e, p) => shell.showItemInFolder(p));
+ipcMain.handle('shell:openExternal', (_e, u) => shell.openExternal(u));

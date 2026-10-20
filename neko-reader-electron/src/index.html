@@ -13,6 +13,7 @@
       <span class="logo">🐱 NekoReader</span>
       <button id="btn-open" class="pill">📂 Abrir</button>
       <button id="btn-lib" class="pill">📚 Biblioteca</button>
+      <button id="btn-ai" class="pill" title="Resumo e perguntas com IA (Qwen)">🤖 IA</button>
       <button id="btn-opts" class="pill">⚙ Opções</button>
     </div>
     <div id="book-title"></div>
@@ -40,7 +41,7 @@
         <div id="continue-row"></div>
       </section>
       <section id="lib-wrap">
-        <h3>Todos os itens</h3>
+        <h3>Todos os itens <span id="lib-count" class="count"></span></h3>
         <div id="lib-grid"></div>
       </section>
       <div class="side-foot">
@@ -63,8 +64,8 @@
              <kbd>F</kbd> tela cheia · <kbd>M</kbd> mangá · <kbd>D</kbd> dupla · <kbd>Tab</kbd> biblioteca</p>
         </div>
         <div id="pages" hidden>
-          <div class="page-slot" id="slot0"><img /><div class="flip"></div></div>
-          <div class="page-slot" id="slot1" hidden><img /><div class="flip"></div></div>
+          <div class="page-slot" id="slot0"><img /><div class="turn"></div></div>
+          <div class="page-slot" id="slot1" hidden><img /><div class="turn"></div></div>
         </div>
         <div id="error-banner" hidden></div>
         <div id="hud" hidden>
@@ -75,11 +76,11 @@
 
       <!-- ===== barra inferior ===== -->
       <footer id="bottombar">
-        <button class="nav" id="btn-first" title="Primeira (Home)">⏮</button>
+        <button class="nav" id="btn-first" title="Primeira (Home)"><svg viewBox="0 0 24 24" width="15" height="15"><path fill="#ffffff" d="M6 5h2.4v14H6zM20 5v14L9.8 12z"/></svg></button>
         <button class="nav" id="btn-prev" title="Anterior (←)">◀</button>
         <span id="page-ind">– / –</span>
         <button class="nav" id="btn-next" title="Próxima (→)">▶</button>
-        <button class="nav" id="btn-last" title="Última (End)">⏭</button>
+        <button class="nav" id="btn-last" title="Última (End)"><svg viewBox="0 0 24 24" width="15" height="15"><path fill="#ffffff" d="M15.6 5H18v14h-2.4zM4 5l10.2 7L4 19z"/></svg></button>
         <i class="sep"></i>
         <button class="tog" id="btn-manga" title="Modo mangá RTL (M)"> Mangá</button>
         <button class="tog" id="btn-double" title="Página dupla (D)">Dupla</button>
@@ -91,6 +92,21 @@
         <button class="tog" id="btn-fs" title="Tela cheia (F)">⛶ Tela cheia</button>
         <button class="pill small danger" id="btn-close-book">Fechar livro</button>
       </footer>
+      <!-- ===== painel de IA (Qwen) ===== -->
+      <aside id="ai-drawer" hidden>
+        <div class="ai-head">
+          <b>🤖 Assistente de leitura</b>
+          <button id="ai-close" class="icon-btn" title="Fechar">✕</button>
+        </div>
+        <div class="ai-actions">
+          <button id="ai-sum-page" class="pill small">Resumir esta página</button>
+          <button id="ai-sum-doc" class="pill small">Resumir o documento</button>
+          <button id="ai-ocr-copy" class="pill small" title="Copiar o texto da página para colar em um OCR externo">Copiar texto da página</button>
+        </div>
+        <textarea id="ai-question" rows="2" placeholder="Pergunte algo sobre a página/documento… (Ctrl+Enter envia)"></textarea>
+        <button id="ai-send" class="pill primary">Perguntar ➤</button>
+        <div id="ai-out"><p class="hint">Configure a chave do Qwen em ⚙ Opções → IA. Funciona também com Ollama/LM Studio locais.</p></div>
+      </aside>
     </main>
   </div>
 
@@ -102,6 +118,7 @@
         <button type="button" class="tab active" data-tab="reading">Leitura</button>
         <button type="button" class="tab" data-tab="ui">Interface</button>
         <button type="button" class="tab" data-tab="win">Windows</button>
+        <button type="button" class="tab" data-tab="ai">IA</button>
       </nav>
 
       <section data-pane="reading">
@@ -125,6 +142,7 @@
         </label>
         <label><input type="checkbox" id="opt-showlib" /> Mostrar biblioteca ao iniciar</label>
         <label>Largura da biblioteca <input type="range" id="opt-side" min="220" max="460" step="10" /></label>
+        <p class="hint">Dica: você também pode arrastar a borda direita da biblioteca para redimensioná-la.</p>
       </section>
 
       <section data-pane="win" hidden>
@@ -135,6 +153,24 @@
         <h3 style="margin-top:10px">Pastas da biblioteca</h3>
         <div id="folders-list" class="folders-list"></div>
         <button type="button" id="opt-addfolder" class="pill small">＋ Adicionar pasta…</button>
+      </section>
+
+      <section data-pane="ai" hidden>
+        <label>Provedor
+          <select id="opt-aiprov">
+            <option value="qwen">Qwen (Alibaba DashScope)</option>
+            <option value="openai_compat">Compatível OpenAI (Ollama / LM Studio / OpenRouter)</option>
+          </select>
+        </label>
+        <label>Chave de API <input type="password" id="opt-aikey" placeholder="sk-…" autocomplete="off" /></label>
+        <label>URL base (opcional) <input type="text" id="opt-aibase" placeholder="https://…/v1/chat/completions" /></label>
+        <label>Modelo <input type="text" id="opt-aimodel" placeholder="qwen-plus · qwen2.5:7b …" /></label>
+        <p class="hint">Crie uma chave grátis do Qwen em
+          <a href="#" id="ai-link-dashscope">dashscope.console.aliyun.com</a>.
+          Para uso 100% local, escolha "Compatível OpenAI" e aponte para o Ollama
+          (<code>http://localhost:11434/v1/chat/completions</code>, sem chave).</p>
+        <div class="row"><button type="button" id="opt-aitest" class="pill small">Testar conexão</button><span id="ai-test-out" class="hint"></span></div>
+        <p class="hint">No painel 🤖 é possível resumir página/documento e fazer perguntas sobre PDFs com texto. PDFs escaneados precisam de OCR antes (recomendado: <a href="#" id="ai-link-ocr">DigitalOCR</a> ou PowerToys Text Extractor).</p>
       </section>
 
       <menu>

@@ -24,9 +24,16 @@ contextBridge.exposeInMainWorld('neko', {
   // estado/configuracoes (persistido em %APPDATA%/NekoReader)
   getState: () => ipcRenderer.invoke('state:get'),
   setState: (patch) => ipcRenderer.invoke('state:set', patch),
+  setKeepAwake: (on) => ipcRenderer.invoke('power:awake', on),
 
   showInFolder: (p) => ipcRenderer.invoke('shell:showItem', p),
   setAssoc: (on) => ipcRenderer.invoke('assoc:set', on),
+
+  // IA (Qwen / compativel OpenAI)
+  pageText: (filePath, index) => ipcRenderer.invoke('book:text', { filePath, index }),
+  aiAsk: (opts) => ipcRenderer.invoke('ai:ask', opts),
+  aiTest: () => ipcRenderer.invoke('ai:test'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
   onOpenPath: (cb) => ipcRenderer.on('open-path', (_e, p) => cb(p))
 });

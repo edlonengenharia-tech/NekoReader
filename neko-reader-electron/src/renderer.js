@@ -18,6 +18,7 @@ const el = {
 let S = null;                 // settings persistidos
 let positions = {};           // file -> {page,total}
 let libraryFolders = [];
+let excluded = [];
 let libItems = [];
 let book = null;              // { file, pages:[names], count }
 let view = 0;                 // indice de exibicao (ja considera RTL)
@@ -35,13 +36,14 @@ const disp = (p) => manga ? (book.count - 1 - p) : p;      // fisica -> exibicao
 async function loadState() {
   const st = await neko.getState();
   S = st.settings; positions = st.positions || {}; libraryFolders = st.libraryFolders || [];
+  excluded = st.excluded || [];
   el.body.dataset.theme = S.theme;
   document.documentElement.style.setProperty('--side', S.sidebarWidth + 'px');
   manga = !!S.mangaByDefault; dbl = !!S.doublePageByDefault; fit = S.fit || 'width';
   syncToggles();
 }
 async function savePositions() {
-  await neko.setState({ positions, libraryFolders });
+  await neko.setState({ positions, libraryFolders, excluded });
 }
 
 // ---------------- abrir livro ----------------
@@ -62,6 +64,7 @@ async function openPath(p) {
       ensureClickZones();
       render(true);
       prefetch();
+      applyKeepAwake();
     }
   } catch (e) {
     showError(e.message || String(e));
@@ -70,10 +73,13 @@ async function openPath(p) {
 
 neko.onOpenPath(openPath);
 
+function applyKeepAwake() { neko.setKeepAwake(!!(S.keepAwake && book)); }
+
 function closeBook() {
   book = null; view = 0; pageCache.clear();
   el.pages.hidden = true; el.hud.hidden = true; el.bookTitle.textContent = '';
   el.empty.hidden = false; removeClickZones();
+  applyKeepAwake();
 }
 
 // ---------------- render ----------------
@@ -90,7 +96,12 @@ async function render(animate) {
     if (img.src !== url) img.src = url;
     applyFit(img);
     if (animate && S.flipAnimation) {
-      slots[i].classList.remove('flipping'); void slots[i].offsetWidth; slots[i].classList.add('flipping');
+      const slot = slots[i];
+      slot.setAttribute('dir', manga ? 'rtl' : 'ltr');
+      slot.classList.remove('turning'); void slot.offsetWidth; slot.classList.add('turning');
+      setTimeout(() => slot.classList.remove('turning'), 360);
+    } else {
+      slots[i].classList.remove('turning');
     }
   }
   // ordem visual em RTL: espelha os slots
@@ -203,6 +214,7 @@ window.addEventListener('keydown', (e) => {
     case '+': case '=': $('#btn-zin').click(); break;
     case '-': $('#btn-zout').click(); break;
     case ',': if (e.ctrlKey) openOptions(); break;
+    case 'i': case 'I': if (e.ctrlKey) { aiDrawer.hidden = !aiDrawer.hidden; e.preventDefault(); } break;
   }
 });
 
@@ -255,8 +267,35 @@ $('#btn-open').onclick = async () => {
 function toggleSidebar() { el.sidebar.classList.toggle('hidden'); }
 $('#btn-lib').onclick = toggleSidebar;
 
+// alca de redimensionamento: arrastar muda --side e persiste
+(function setupResizer(){
+  const rz = $('#resizer');
+  if (!rz) return;
+  let startX = 0, startW = 0, dragging = false;
+  rz.addEventListener('mousedown', (e) => {
+    dragging = true; startX = e.clientX;
+    startW = el.sidebar.getBoundingClientRect().width;
+    document.body.classList.add('resizing'); rz.classList.add('active');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const w = Math.min(720, Math.max(200, Math.round(startW + (e.clientX - startX))));
+    document.documentElement.style.setProperty('--side', w + 'px');
+  });
+  window.addEventListener('mouseup', async () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing'); rz.classList.remove('active');
+    const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--side'), 10) || 300;
+    S.sidebarWidth = w; await neko.setState({ settings: S });
+    book && render(false);
+  });
+})();
+
 async function refreshLibrary() {
-  libItems = await neko.scanLibrary(libraryFolders);
+  const all = await neko.scanLibrary(libraryFolders);
+  libItems = all.filter(x => !excluded.includes(x.file));
   renderLibrary();
 }
 let libTimer = null;
@@ -277,6 +316,16 @@ document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
   c.classList.add('active'); filter = c.dataset.filter; renderLibrary();
 });
 
+async function removeItem(it) {
+  if (!confirm(`Remover "${it.name}" da biblioteca?\n(somente da lista — o arquivo NÃO é apagado do disco)`)) return;
+  excluded.push(it.file);
+  await neko.setState({ excluded });
+  libItems = libItems.filter(x => x.file !== it.file);
+  delete positions[it.file];
+  await savePositions();
+  renderLibrary();
+}
+
 function filteredItems() {
   const q = el.search.value.trim().toLowerCase();
   return libItems.filter(it => {
@@ -291,10 +340,13 @@ function filteredItems() {
 async function renderLibrary() {
   el.libGrid.innerHTML = '';
   const items = filteredItems();
+  const cnt = $('#lib-count'); if (cnt) cnt.textContent = `(${items.length})`;
   for (const it of items.slice(0, 200)) {
     const card = document.createElement('div');
     card.className = 'lib-item';
-    card.innerHTML = `<div class="ph">📄</div><div class="t" title="${esc(it.name)}">${esc(it.name)}</div>`;
+    card.innerHTML = `<div class="ph">📄</div><div class="t" title="${esc(it.name)}">${esc(it.name)}</div>
+      <button class="rm" title="Remover da biblioteca (apenas some da lista; o arquivo fica no disco)">✕</button>`;
+    card.querySelector('.rm').onclick = (ev) => { ev.stopPropagation(); removeItem(it); };
     card.onclick = () => openPath(it.file);
     el.libGrid.appendChild(card);
     neko.coverOf(it.file).then(url => {
@@ -336,10 +388,53 @@ function openOptions() {
   $('#opt-showlib').checked = S.showLibraryOnStart;
   $('#opt-side').value = S.sidebarWidth;
   $('#opt-assoc').checked = S.associateFiles;
+  $('#opt-aiprov').value = S.aiProvider || 'qwen';
+  $('#opt-aikey').value = S.aiKey || '';
+  $('#opt-aibase').value = S.aiBaseUrl || '';
+  $('#opt-aimodel').value = S.aiModel || '';
+  wasAssoc = !!S.associateFiles;
+  $('#assoc-status').textContent = S.associateFiles ? 'Associação ativa no Explorer.' : 'Associação desativada.';
+  renderFoldersList();
   dlg.showModal();
 }
 $('#btn-opts').onclick = openOptions;
 $('#opt-cancel').onclick = () => dlg.close();
+
+// ---- opcoes: aba Windows (lista de pastas com remover) e IA ----
+function renderFoldersList() {
+  const box = $('#folders-list'); if (!box) return;
+  box.innerHTML = '';
+  if (!libraryFolders.length) { box.innerHTML = '<span class="hint">Nenhuma pasta na biblioteca ainda.</span>'; return; }
+  for (const f of libraryFolders) {
+    const row = document.createElement('div');
+    row.className = 'folder-row';
+    row.innerHTML = `<span title="${esc(f)}">📁 ${esc(f)}</span><button title="Remover da biblioteca">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      libraryFolders = libraryFolders.filter(x => x !== f);
+      await neko.setState({ libraryFolders });
+      renderFoldersList(); refreshLibrary();
+    };
+    box.appendChild(row);
+  }
+}
+$('#opt-addfolder').onclick = async () => {
+  const f = await neko.openFolder();
+  if (f && !libraryFolders.includes(f)) {
+    libraryFolders.push(f);
+    await neko.setState({ libraryFolders });
+    renderFoldersList(); refreshLibrary();
+  }
+};
+$('#ai-link-dashscope').onclick = (e) => { e.preventDefault(); neko.openExternal('https://dashscope.console.aliyun.com/apiKey'); };
+$('#ai-link-ocr').onclick = (e) => { e.preventDefault(); neko.openExternal('https://github.com/Jesky/DigitalOCR'); };
+$('#opt-aitest').onclick = async () => {
+  // salva antes para o teste usar os valores digitados
+  collectOptions(); await neko.setState({ settings: S });
+  const out = $('#ai-test-out');
+  out.textContent = 'Testando…';
+  try { out.textContent = '[OK] ' + (await neko.aiTest()); }
+  catch (e) { out.textContent = '[ERRO] ' + (e.message || e); }
+};
 
 dlg.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   dlg.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -347,7 +442,7 @@ dlg.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   dlg.querySelectorAll('section[data-pane]').forEach(s => s.hidden = s.dataset.pane !== t.dataset.tab);
 });
 
-$('#options form').addEventListener('submit', async () => {
+function collectOptions() {
   S.mangaByDefault = $('#opt-manga').checked;
   S.doublePageByDefault = $('#opt-double').checked;
   S.fit = $('#opt-fit').value;
@@ -358,11 +453,90 @@ $('#options form').addEventListener('submit', async () => {
   S.showLibraryOnStart = $('#opt-showlib').checked;
   S.sidebarWidth = parseInt($('#opt-side').value, 10) || 300;
   S.associateFiles = $('#opt-assoc').checked;
+  S.aiProvider = $('#opt-aiprov').value;
+  S.aiKey = $('#opt-aikey').value.trim();
+  S.aiBaseUrl = $('#opt-aibase').value.trim();
+  S.aiModel = $('#opt-aimodel').value.trim();
+  return S;
+}
+
+$('#options form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();           // NAO fechar via method=dialog antes de aplicar
+  collectOptions();
   await neko.setState({ settings: S });
+
+  // ----- Interface: tema + sidebar + layout em tempo real -----
   el.body.dataset.theme = S.theme;
   document.documentElement.style.setProperty('--side', S.sidebarWidth + 'px');
-  fit = S.fit; syncToggles(); book && render(false);
+  el.sidebar.classList.toggle('hidden', !S.showLibraryOnStart);
+
+  // ----- Leitura: fit/prefetch/zonas/animação valem imediatamente -----
+  manga = S.mangaByDefault || manga; dbl = S.doublePageByDefault || dbl;
+  fit = S.fit; removeClickZones(); ensureClickZones();
+  syncToggles(); book && render(false);
+
+  // ----- Windows: aplicar associacao se mudou -----
+  if (wasAssoc !== S.associateFiles) {
+    const r = await neko.setAssoc(S.associateFiles);
+    $('#assoc-status').textContent = r.msg || '';
+    wasAssoc = S.associateFiles;
+  }
+
+  dlg.close();
 });
+let wasAssoc = false;
+
+// ---------------- painel de IA (Qwen) ----------------
+const aiDrawer = $('#ai-drawer');
+$('#btn-ai').onclick = () => { aiDrawer.hidden = !aiDrawer.hidden; };
+$('#ai-close').onclick = () => { aiDrawer.hidden = true; };
+
+function currentPhysPage() { return book ? Math.min(phys(view), book.count - 1) : 0; }
+
+function mdLite(txt) {
+  // markdown minimo: **negrito**, linhas "- " viram bullets, quebras -> <br>
+  let h = esc(txt);
+  h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  h = h.replace(/^#{1,3}\s*(.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+  h = h.replace(/(<li>.*?<\/li>)(?!<li>)/gs, '$1');
+  return h.replace(/\n/g, '<br/>');
+}
+
+async function aiRun(kind) {
+  if (!book) { aiSay('Abra um PDF/quadrinho primeiro.'); return; }
+  const out = $('#ai-out');
+  out.innerHTML = '<p class="thinking">🤔 Consultando a IA…</p>';
+  try {
+    const reply = await neko.aiAsk({
+      kind, file: book.file, pageIdx: currentPhysPage(),
+      question: $('#ai-question').value.trim() || 'Explique o conteúdo.',
+      rangePages: (kind === 'summary-doc' || kind === 'ask-doc') ? 'all' : 'page'
+    });
+    out.innerHTML = '<div class="md">' + mdLite(reply) + '</div>';
+  } catch (e) {
+    out.innerHTML = '<p style="color:var(--danger)">⚠ ' + esc(e.message || String(e)) + '</p>';
+  }
+}
+function aiSay(msg) { $('#ai-out').innerHTML = '<p class="hint">' + esc(msg) + '</p>'; }
+
+$('#ai-sum-page').onclick = () => aiRun('summary');
+$('#ai-sum-doc').onclick = () => aiRun('summary-doc');
+$('#ai-send').onclick = () => aiRun('ask');
+$('#ai-question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.ctrlKey) aiRun('ask');
+  e.stopPropagation(); // nao navegar com setas enquanto digita
+});
+$('#ai-ocr-copy').onclick = async () => {
+  if (!book) return aiSay('Nenhum livro aberto.');
+  const txt = await neko.pageText(book.file, currentPhysPage());
+  if (txt) {
+    await navigator.clipboard.writeText(txt);
+    aiSay('Texto da página copiado! Cole em qualquer lugar — ou pergunte à IA sobre ele aqui em cima.');
+  } else {
+    aiSay('Esta página é imagem pura (PDF escaneado). Rode OCR antes: PowerToys Text Extractor (Win+Shift+T) ou DigitalOCR, depois cole o texto na pergunta acima.');
+  }
+};
 
 // ---------------- erro ----------------
 function showError(msg) { el.err.textContent = '⚠ ' + msg; el.err.hidden = false; }

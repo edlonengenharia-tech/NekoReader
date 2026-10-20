@@ -7,6 +7,24 @@
 const fs = require('fs');
 const path = require('path');
 
+// No Node/Electron-main o pdfjs tenta BAIXAR as fontes padrao (Helvetica, Courier...)
+// por URL -> falha silenciosa e a pagina sai em branco ("abre mas nao le").
+// Solucao: apontar standardFontDataUrl para a pasta LOCAL do pacote pdfjs-dist,
+// em formato file:// (com barra final), que o fetcher do Node aceita.
+let _stdFontPatched = false;
+function patchStandardFonts(lib) {
+  if (_stdFontPatched) return;
+  _stdFontPatched = true;
+  try {
+    const path = require('path');
+    const fsx = require('fs');
+    let dir = path.join(path.dirname(require.resolve('pdfjs-dist/legacy/build/pdf.js')), '..', '..', 'standard_fonts');
+    if (!fsx.existsSync(dir)) dir = path.join(path.dirname(require.resolve('pdfjs-dist/package.json')), 'standard_fonts');
+    const url = 'file:///' + dir.split(path.sep).join('/').replace(/^\/+/, '') + '/';
+    lib.__nekoStandardFontDir = url;
+  } catch (_) {}
+}
+
 let _doc = null;      // documento aberto em cache
 let _docKey = null;
 let _pdfjs = null;
@@ -45,7 +63,18 @@ async function getDoc(file) {
     var worker = PdfWorker ? new PdfWorker({ name: 'neko-pdf-worker' }) : null;
   } catch (_) { var worker = null; }
 
-  const params = { data, useSystemFonts: true, isEvalSupported: false, disableFontFace: true };
+  patchStandardFonts(lib);
+  const params = {
+    data,
+    useSystemFonts: true,
+    isEvalSupported: false,
+    disableFontFace: true,
+    // pasta LOCAL das fontes padrao (vem no pacote npm pdfjs-dist): sem isto,
+    // PDFs de texto simples saem em branco no render Node (@napi-rs/canvas).
+    standardFontDataUrl: lib.__nekoStandardFontDir || undefined,
+    // nunca usar canvas de DOM (inexistente no main)
+    enableXfa: false
+  };
   if (worker) params.worker = worker;
   try {
     _doc = await lib.getDocument(params).promise;
@@ -99,4 +128,12 @@ function placeholderSvg(text) {
   return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
 }
 
-module.exports = { pageCount, renderPageDataUrl };
+/** Extrai o texto de uma pagina (0-based). '' = pagina escaneada/sem camada de texto. */
+async function pageText(file, index) {
+  const doc = await getDoc(file);
+  const page = await doc.getPage(index + 1);
+  const tc = await page.getTextContent();
+  return tc.items.map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+module.exports = { pageCount, renderPageDataUrl, pageText, getDoc };

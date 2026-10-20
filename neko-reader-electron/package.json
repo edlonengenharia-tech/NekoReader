@@ -45,8 +45,7 @@
             "x64"
           ]
         }
-      ],
-      "icon": "assets/icon.ico"
+      ]
     },
     "portable": {
       "artifactName": "NekoReader-portable.exe"

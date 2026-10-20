@@ -11,4 +11,18 @@ try {
   const url = await archives.readPageDataUrl('samples/exemplo.cbz', 0);
   if (!url.startsWith('data:image/png;base64,')) throw new Error('pagina 0 nao decodificou como PNG');
   console.log('[OK] CBZ: 6 paginas listadas, pagina 1 extraida (' + Math.round(url.length/1024) + ' KB base64).');
-} catch (e) { console.error('[ERRO] smoke:', e.message); process.exit(1); }
+} catch (e) { console.error('[ERRO] smoke CBZ:', e.message); process.exit(1); }
+
+// PDF: precisa abrir E ter camada de texto legivel (funcoes novas do leitor de PDF)
+try {
+  const pdf = require('../src/pdf.js');
+  if (fs.existsSync('samples/exemplo.pdf')) {
+    const n = await pdf.pageCount('samples/exemplo.pdf');
+    const img = await pdf.renderPageDataUrl('samples/exemplo.pdf', 0);
+    if (!img.startsWith('data:image/')) throw new Error('renderizador nao devolveu imagem');
+    const txt = await pdf.pageText('samples/exemplo.pdf', 0);
+    console.log('[OK] PDF: ' + n + ' paginas, render OK, texto da p.1: "' + (txt || '(sem texto - escaneado)').slice(0, 40) + '"');
+  } else {
+    console.log('[--] samples/exemplo.pdf ausente, pulando teste de PDF');
+  }
+} catch (e) { console.error('[ERRO] smoke PDF:', e.message); process.exit(1); }
