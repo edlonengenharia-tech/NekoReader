@@ -14,6 +14,43 @@
   --text: #1d2230; --muted: #6a7183; --pill: #e8ebf2; --pill-hover: #dcdfeb;
   --shadow: rgba(30,40,80,.15);
 }
+/* ---- temas novos (v1.1) ---- */
+[data-theme="sepia"] { /* papel envelhecido, confortavel para leitura longa */
+  --bg: #efe3c8; --bg2: #f6ecd6; --panel: #faf1de; --line: #d9c8a3;
+  --text: #4a3b28; --muted: #8a765a; --accent: #b3592b; --accent2: #6f8f5a;
+  --danger: #c0392b; --pill: #e6d7b8; --pill-hover: #dcc9a2; --pill-active: #b3592b;
+  --shadow: rgba(90,70,40,.25);
+}
+[data-theme="grape"] { /* roxo profundo com lavanda */
+  --bg: #17122b; --bg2: #1e1838; --panel: #251d45; --line: #372c5c;
+  --text: #ece7ff; --muted: #a89fd0; --accent: #b06bff; --accent2: #ff7ad9;
+  --pill: #2e2456; --pill-hover: #3a2f6b; --pill-active: #b06bff;
+  --shadow: rgba(10,5,30,.55);
+}
+[data-theme="forest"] { /* verde escuro, descanso visual */
+  --bg: #101b14; --bg2: #15241b; --panel: #1a2d22; --line: #2a4033;
+  --text: #e2f0e6; --muted: #93ae9d; --accent: #4caf7d; --accent2: #d4b95e;
+  --danger: #e06c5a; --pill: #22382b; --pill-hover: #2c4636; --pill-active: #4caf7d;
+  --shadow: rgba(0,20,10,.5);
+}
+[data-theme="ocean"] { /* azul-escuro acinzentado, ciano */
+  --bg: #0c1622; --bg2: #10202f; --panel: #14273a; --line: #22405c;
+  --text: #e3edf7; --muted: #8fa9c1; --accent: #2f9ee0; --accent2: #57e0b0;
+  --danger: #ff7b72; --pill: #1a3248; --pill-hover: #22415e; --pill-active: #2f9ee0;
+  --shadow: rgba(0,10,25,.55);
+}
+[data-theme="rose"] { /* rosa claro suave */
+  --bg: #fdf1f4; --bg2: #fff7f9; --panel: #ffffff; --line: #f2d3dc;
+  --text: #40262f; --muted: #9a6b7a; --accent: #e0568a; --accent2: #8a6bd1;
+  --danger: #d94f5c; --pill: #f8dde5; --pill-hover: #f2ccd7; --pill-active: #e0568a;
+  --shadow: rgba(150,60,90,.18);
+}
+[data-theme="highcontrast"] { /* preto puro + amarelo, acessibilidade */
+  --bg: #000000; --bg2: #0a0a0a; --panel: #111111; --line: #ffd400;
+  --text: #ffffff; --muted: #ffe680; --accent: #ffd400; --accent2: #00e5ff;
+  --danger: #ff5555; --pill: #1a1a00; --pill-hover: #2b2b00; --pill-active: #ffd400;
+  --shadow: rgba(0,0,0,.9);
+}
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
